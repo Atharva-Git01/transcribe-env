@@ -1,0 +1,61 @@
+[recipe]
+id = "clean_studio"
+version = 1
+description = "Clean, wide-band, unclipped recording (studio, dictation, good microphone)."
+when_to_use = "SNR >= 30 dB, clipping < 0.05 %, wideband or fullband."
+when_not_to_use = "Anything noisy or telephone-band."
+stages = ["convert", "vad", "lid", "recognise", "polish", "gate", "export"]   # no denoise on purpose
+
+[convert]
+channels = "downmix"
+highpass_hz = 60
+loudnorm_target_lufs = -20.0
+sample_rate = 16000
+
+[vad]
+engine = "silero"
+threshold = 0.50
+min_speech_ms = 250
+min_silence_ms = 500
+speech_pad_ms = 200
+max_segment_s = 28.0
+
+[lid]
+mode = "auto"
+candidates = ["mr", "hi", "en"]
+per_segment = false
+
+[recognise]
+language = "auto"
+initial_prompt_file = "prompts/initial_prompts/{lang}/general.txt"
+word_timestamps = true
+
+[recognise.faster_whisper]
+compute_type_gpu = "int8_float16"
+compute_type_cpu = "int8"
+beam_size = 5
+best_of = 5
+patience = 1.0
+temperature = [0.0, 0.2, 0.4, 0.6]
+compression_ratio_threshold = 2.4
+log_prob_threshold = -1.0
+no_speech_threshold = 0.6
+condition_on_previous_text = false
+repetition_penalty = 1.0
+no_repeat_ngram_size = 0
+hallucination_silence_threshold = 2.0
+vad_filter = false
+
+[recognise.indic_conformer]
+decoder = "rnnt"
+
+[polish]
+doubled_words_guard = true
+loop_action = "flag"
+numerals = "defaults"
+
+[gate]
+thresholds = "gate"
+
+[export]
+formats = "defaults"

@@ -1,0 +1,35 @@
+{
+  "title": "trx custody: sha256 of the original, the read-only copy, and every file a run produced",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "run_id", "original", "entries"],
+  "properties": {
+    "schema": {"const": "trx.custody/1"},
+    "run_id": {"type": "string"},
+    "original": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "hashed_utc"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "minLength": 64},
+        "size_bytes": {"type": "integer"},
+        "hashed_utc": {"type": "string"}
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["file", "role", "stage", "sha256", "size_bytes", "utc"],
+        "properties": {
+          "file": {"type": "string"},
+          "role": {"enum": ["input_copy", "derived", "output", "record"]},
+          "stage": {"type": "string"},
+          "sha256": {"type": "string", "minLength": 64},
+          "size_bytes": {"type": "integer"},
+          "utc": {"type": "string"}
+        }
+      }
+    }
+  }
+}

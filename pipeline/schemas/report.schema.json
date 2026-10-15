@@ -1,0 +1,18 @@
+{
+  "title": "trx report: the verdict of a run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "env_version", "run_id", "verdict", "reasons", "exit_name", "recipe", "stages", "outputs"],
+  "properties": {
+    "schema": {"const": "trx.report/1"},
+    "env_version": {"type": "string"},
+    "run_id": {"type": "string"},
+    "verdict": {"enum": ["PASS", "REVIEW", "FAIL"]},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "exit_name": {"type": "string"},
+    "recipe": {"type": "string"},
+    "stages": {"type": "array", "items": {"type": "object"}},
+    "outputs": {"type": "object"},
+    "metrics": {"type": "object"}
+  }
+}

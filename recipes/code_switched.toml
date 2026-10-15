@@ -1,0 +1,72 @@
+[recipe]
+id = "code_switched"
+version = 1
+description = "Speakers mix Marathi, Hindi and English inside sentences."
+when_to_use = "language.code_switch_risk == high (measured from phase 1)."
+when_not_to_use = "Single-language audio — forcing per-segment language ID there adds errors."
+stages = ["convert", "denoise", "vad", "lid", "recognise", "verify", "polish", "gate", "export"]
+
+[convert]
+channels = "downmix"
+highpass_hz = 80
+loudnorm_target_lufs = -20.0
+sample_rate = 16000
+
+[denoise]
+engine = "deep_filter"
+fallback = ["noisereduce", "copy_through"]
+skip_below_dbfs = -42.0
+attenuation_limit_db = 18.0
+
+[vad]
+engine = "silero"
+threshold = 0.40
+min_speech_ms = 200
+min_silence_ms = 300
+speech_pad_ms = 200
+max_segment_s = 15.0              # shorter windows so each can carry its own language
+
+[lid]
+mode = "auto"
+candidates = ["mr", "hi", "en"]
+per_segment = true                # language decided per VAD segment, never one forced language
+
+[recognise]
+language = "per_segment"
+initial_prompt_file = "prompts/initial_prompts/mixed/general.txt"
+word_timestamps = true
+english_words_script = "latin"    # English words stay in Latin script, never transliterated
+
+[recognise.faster_whisper]
+compute_type_gpu = "int8_float16"
+compute_type_cpu = "int8"
+beam_size = 5
+best_of = 5
+patience = 1.0
+temperature = [0.0, 0.2, 0.4, 0.6]
+compression_ratio_threshold = 2.4
+log_prob_threshold = -1.0
+no_speech_threshold = 0.6
+condition_on_previous_text = false
+repetition_penalty = 1.0
+no_repeat_ngram_size = 0
+hallucination_silence_threshold = 2.0
+vad_filter = false
+
+[recognise.indic_conformer]
+decoder = "rnnt"
+
+[verify]
+required = false
+redecode_weak_windows = true
+
+[polish]
+doubled_words_guard = true
+loop_action = "flag"
+numerals = "defaults"
+
+[gate]
+thresholds = "gate"
+
+[export]
+formats = "defaults"

@@ -1,0 +1,48 @@
+# The ONE place where a global default lives. Recipes may override stage params; nothing else may.
+# Precedence (lowest -> highest): this file -> the selected recipe -> command-line overrides (recorded in plan.json).
+
+[runtime]
+min_free_gb = 2.0                 # refuse to start a run below this
+analysis_sample_rate = 32000      # probe decodes at this rate (covers phone vs wideband vs fullband detection)
+asr_sample_rate = 16000           # every engine receives 16 kHz mono/channel audio
+gpu_one_model_at_a_time = true    # load -> run -> unload, never two models on the 4 GB GPU together
+seed = 1234                       # fixed seed wherever a stage is stochastic
+
+[output]
+style = "verbatim"                # "verbatim" (forensic, default) | "readable"
+formats = ["txt", "srt", "vtt", "json"]
+numerals = "as_recognised"        # "as_recognised" | "western" | "devanagari" (applied in polish, logged)
+speaker_label_prefix = "SPK"      # SPK1, SPK2 … never real names unless supplied as case hotwords
+inaudible_tag = "[inaudible {start}-{end}]"
+overlap_tag = "[overlap]"
+review_tag = "[review]"
+
+[languages]
+priority = ["mr", "hi", "en"]
+allow_auto_detect = true
+
+# Engine used per language. Phase 1 bootstrap = faster-whisper medium (already cached).
+# Phase 2 replaces these with the winners of `trx eval` and records the scores in evals/baseline.json.
+[engines.primary]
+mr = "faster_whisper_medium"
+hi = "faster_whisper_medium"
+en = "faster_whisper_medium"
+mixed = "faster_whisper_medium"
+unknown = "faster_whisper_medium"
+
+[engines.cross_check]
+enabled = false                   # Phase 2: second engine for agreement scoring
+mr = ""
+hi = ""
+en = ""
+mixed = ""
+unknown = ""
+
+[vocabulary]
+# The FMS Marathi vocab maps some real words onto other words (see knowledge/ERRORS.md E07). Off until reviewed.
+enabled = false
+files = []
+
+[llm_cleanup]
+enabled = false                   # Phase 3: Gemma 3 via llama.cpp; suggestions only, 5 gates decide
+model = "gemma3_4b_it_q4"

@@ -1,0 +1,16 @@
+# Hindi words genuinely spoken twice in a row (reduplication, backchannels). Never flag or remove these as loops.
+हाँ
+हां
+हम्म
+अरे
+चल
+जा
+आओ
+रुको
+बस
+अच्छा
+धीरे
+जल्दी
+अभी
+नहीं
+ठीक

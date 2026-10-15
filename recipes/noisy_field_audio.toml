@@ -1,0 +1,76 @@
+[recipe]
+id = "noisy_field_audio"
+version = 1
+description = "CCTV, body-cam, street, vehicle or wind noise; low signal-to-noise."
+when_to_use = "noise.snr_db_estimate < 12 dB."
+when_not_to_use = "Clean recordings — denoising clean audio removes detail and can raise the error rate."
+stages = ["convert", "separate", "denoise", "vad", "lid", "recognise", "verify", "polish", "gate", "export"]
+
+[convert]
+channels = "downmix"
+highpass_hz = 100
+loudnorm_target_lufs = -20.0
+sample_rate = 16000
+
+[separate]
+required = false                  # phase 4 (Demucs); skipped until installed
+engine = "demucs"
+keep = "vocals"
+
+[denoise]
+engine = "deep_filter"
+fallback = ["noisereduce", "copy_through"]
+skip_below_dbfs = -45.0
+attenuation_limit_db = 24.0
+
+[vad]
+engine = "silero"
+threshold = 0.30                  # soft speech under noise
+min_speech_ms = 250
+min_silence_ms = 500
+speech_pad_ms = 300
+max_segment_s = 25.0
+
+[lid]
+mode = "auto"
+candidates = ["mr", "hi", "en"]
+per_segment = false
+
+[recognise]
+language = "auto"
+initial_prompt_file = "prompts/initial_prompts/{lang}/general.txt"
+word_timestamps = true
+
+[recognise.faster_whisper]
+compute_type_gpu = "int8_float16"
+compute_type_cpu = "int8"
+beam_size = 5
+best_of = 5
+patience = 1.0
+temperature = [0.0, 0.2, 0.4, 0.6]
+compression_ratio_threshold = 2.2   # stricter: noise invites loops
+log_prob_threshold = -1.0
+no_speech_threshold = 0.5
+condition_on_previous_text = false
+repetition_penalty = 1.05
+no_repeat_ngram_size = 0
+hallucination_silence_threshold = 1.5
+vad_filter = false
+
+[recognise.indic_conformer]
+decoder = "rnnt"
+
+[verify]
+required = false                  # phase 2 (dual-engine agreement + re-decode)
+redecode_weak_windows = true
+
+[polish]
+doubled_words_guard = true
+loop_action = "flag"
+numerals = "defaults"
+
+[gate]
+thresholds = "gate"
+
+[export]
+formats = "defaults"

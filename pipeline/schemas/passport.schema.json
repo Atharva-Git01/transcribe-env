@@ -1,0 +1,114 @@
+{
+  "title": "trx passport: what the audio is, measured before anything else happens",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "env_version", "created_utc", "source", "container", "stream", "channels", "levels",
+               "noise", "bandwidth", "activity", "language", "speakers", "music", "warnings"],
+  "properties": {
+    "schema": {"const": "trx.passport/1"},
+    "env_version": {"type": "string", "minLength": 1},
+    "created_utc": {"type": "string", "minLength": 20},
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["file_name", "sha256", "size_bytes"],
+      "properties": {
+        "file_name": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "minLength": 64},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "container": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format_name", "duration_sec", "bit_rate"],
+      "properties": {
+        "format_name": {"type": "string"},
+        "duration_sec": {"type": "number", "minimum": 0},
+        "bit_rate": {"type": ["integer", "null"]}
+      }
+    },
+    "stream": {
+      "type": "object", "additionalProperties": false,
+      "required": ["codec", "sample_rate", "channels", "channel_layout"],
+      "properties": {
+        "codec": {"type": "string"},
+        "sample_rate": {"type": "integer", "minimum": 1},
+        "channels": {"type": "integer", "minimum": 1},
+        "channel_layout": {"type": ["string", "null"]}
+      }
+    },
+    "channels": {
+      "type": "object", "additionalProperties": false,
+      "required": ["count", "layout_class", "inter_channel_correlation", "level_difference_db"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1},
+        "layout_class": {"enum": ["mono", "duplicated_mono", "true_stereo", "multichannel"]},
+        "inter_channel_correlation": {"type": ["number", "null"]},
+        "level_difference_db": {"type": ["number", "null"]}
+      }
+    },
+    "levels": {
+      "type": "object", "additionalProperties": false,
+      "required": ["integrated_lufs", "true_peak_dbtp", "rms_dbfs", "peak_dbfs", "clipping_ratio"],
+      "properties": {
+        "integrated_lufs": {"type": ["number", "null"]},
+        "true_peak_dbtp": {"type": ["number", "null"]},
+        "rms_dbfs": {"type": "number"},
+        "peak_dbfs": {"type": "number"},
+        "clipping_ratio": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "noise": {
+      "type": "object", "additionalProperties": false,
+      "required": ["noise_floor_dbfs", "speech_level_dbfs", "snr_db_estimate", "method"],
+      "properties": {
+        "noise_floor_dbfs": {"type": "number"},
+        "speech_level_dbfs": {"type": "number"},
+        "snr_db_estimate": {"type": "number"},
+        "method": {"type": "string"}
+      }
+    },
+    "bandwidth": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rolloff95_hz_median", "class", "analysis_sample_rate"],
+      "properties": {
+        "rolloff95_hz_median": {"type": "number", "minimum": 0},
+        "class": {"enum": ["narrowband", "wideband", "fullband"]},
+        "analysis_sample_rate": {"type": "integer"}
+      }
+    },
+    "activity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["active_ratio", "method"],
+      "properties": {
+        "active_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "method": {"type": "string"}
+      }
+    },
+    "language": {
+      "type": "object", "additionalProperties": false,
+      "required": ["top3", "code_switch_risk", "status"],
+      "properties": {
+        "top3": {"type": ["array", "null"]},
+        "code_switch_risk": {"type": ["string", "null"]},
+        "status": {"type": "string"}
+      }
+    },
+    "speakers": {
+      "type": "object", "additionalProperties": false,
+      "required": ["estimate", "status"],
+      "properties": {
+        "estimate": {"type": ["integer", "null"]},
+        "status": {"type": "string"}
+      }
+    },
+    "music": {
+      "type": "object", "additionalProperties": false,
+      "required": ["present", "status"],
+      "properties": {
+        "present": {"type": ["boolean", "null"]},
+        "status": {"type": "string"}
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

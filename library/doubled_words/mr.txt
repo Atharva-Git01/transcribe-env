@@ -1,0 +1,19 @@
+# Marathi words and phrases that are genuinely spoken twice in a row (reduplication, backchannels).
+# The loop / hallucination check must NEVER flag or remove these as repetition. One entry per line (the single word).
+# Source: FMS ground truth (हा हा, हो हो occur in the Pappa call) + common Marathi reduplication. Extend from real cases.
+हा
+हो
+हं
+अं
+अरे
+चल
+जा
+ये
+थांब
+बस
+बरं
+हळू
+जरा
+आता
+लवकर
+नाही

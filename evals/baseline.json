@@ -1,0 +1,13 @@
+{
+  "schema": "trx.baseline/1",
+  "env_version": "0.1.0-phase0",
+  "scores": {},
+  "references": {
+    "pappa_260603_211622": {
+      "source": "FMS multilingual_transcription (large-v3, CUDA, forced mr, DeepFilterNet), 2026",
+      "cer": [0.7225, 0.736],
+      "comparable": false,
+      "note": "FMS used its own normalisation; trx re-scores under pipeline/metrics.py once phase 1 runs"
+    }
+  }
+}

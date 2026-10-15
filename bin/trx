@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# trx launcher for Git Bash / POSIX shells: own venv once it exists (phase 1), else system Python 3.12.
+TRX_HOME="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -x "$TRX_HOME/toolchain/python/.venv/Scripts/python.exe" ]; then
+  PY="$TRX_HOME/toolchain/python/.venv/Scripts/python.exe"
+elif [ -x "$TRX_HOME/toolchain/python/.venv/bin/python" ]; then
+  PY="$TRX_HOME/toolchain/python/.venv/bin/python"
+else
+  PY="${LOCALAPPDATA:-$HOME/AppData/Local}/Programs/Python/Python312/python.exe"
+fi
+exec "$PY" -I "$TRX_HOME/trx.py" "$@"

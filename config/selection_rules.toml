@@ -1,0 +1,56 @@
+# Passport -> recipe. Ordered: the FIRST rule whose conditions are ALL true wins. No AI judgement.
+# Condition = [field, operator, value]. field is a dotted path into passport.json.
+# Operators: ">", ">=", "<", "<=", "==", "!=", "in".
+# A condition on a field that is null/unknown is FALSE (so rules needing Phase 1+ data simply do not fire yet).
+
+[[rule]]
+id = "R1_long_file"
+recipe = "long_file"
+when = [["container.duration_sec", ">", 3600]]
+reason = "Longer than one hour: needs chunked, resumable, checkpointed processing."
+
+[[rule]]
+id = "R2_true_stereo"
+recipe = "true_stereo_call"
+when = [["channels.layout_class", "==", "true_stereo"]]
+reason = "Two genuinely different channels: each channel is treated as one speaker."
+
+[[rule]]
+id = "R3_multi_speaker"
+recipe = "meeting_multi_speaker"
+when = [["speakers.estimate", ">=", 3]]
+reason = "Three or more speakers estimated: diarization runs before recognition."
+
+[[rule]]
+id = "R4_noisy"
+recipe = "noisy_field_audio"
+when = [["noise.snr_db_estimate", "<", 12.0]]
+reason = "Low signal-to-noise: separation + denoise + soft-speech VAD."
+
+[[rule]]
+id = "R5_code_switched"
+recipe = "code_switched"
+when = [["language.code_switch_risk", "==", "high"]]
+reason = "Mixed languages likely: per-segment language ID, no forced language."
+
+[[rule]]
+id = "R6_phone_band"
+recipe = "phone_call_mono"
+when = [["bandwidth.class", "==", "narrowband"]]
+reason = "Telephone-band audio (content stops around 3.4 kHz)."
+
+[[rule]]
+id = "R7_clean"
+recipe = "clean_studio"
+when = [
+  ["noise.snr_db_estimate", ">=", 30.0],
+  ["levels.clipping_ratio", "<", 0.0005],
+  ["bandwidth.class", "in", ["wideband", "fullband"]],
+]
+reason = "Clean, wide-band, unclipped audio: skip cleaning (cleaning can hurt clean audio)."
+
+[[rule]]
+id = "R99_fallback"
+recipe = "_fallback"
+when = []
+reason = "No specific rule matched: safe general settings."

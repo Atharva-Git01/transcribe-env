@@ -1,0 +1,69 @@
+# Starting values (v1). Tuned only through `trx eval` (MAINTAINER.md). Every parameter is explicit on purpose.
+
+[recipe]
+id = "phone_call_mono"
+version = 1
+description = "Telephone-band call recorded on one channel (or two identical channels). Marathi/Hindi likely."
+when_to_use = "bandwidth.class == narrowband; layout mono or duplicated_mono; SNR >= 12 dB."
+when_not_to_use = "Two genuinely different channels (use true_stereo_call); heavy noise (noisy_field_audio)."
+stages = ["convert", "denoise", "vad", "lid", "recognise", "polish", "gate", "export"]
+
+[convert]
+channels = "downmix"              # duplicated mono collapses to one channel; NEVER split into fake speakers
+highpass_hz = 80
+loudnorm_target_lufs = -20.0
+sample_rate = 16000
+
+[denoise]
+engine = "deep_filter"            # DeepFilterNet3 binary
+fallback = ["noisereduce", "copy_through"]
+skip_below_dbfs = -42.0           # windows quieter than this are left untouched (no artefacts on silence)
+attenuation_limit_db = 18.0       # do not remove more than this; protects soft speech
+
+[vad]
+engine = "silero"
+threshold = 0.35                  # phone speech is often soft; lower than the 0.5 default
+min_speech_ms = 200
+min_silence_ms = 400
+speech_pad_ms = 250
+max_segment_s = 28.0
+
+[lid]
+mode = "auto"                     # "auto" | "forced" (forced uses recognise.language)
+candidates = ["mr", "hi", "en"]
+per_segment = false
+
+[recognise]
+language = "auto"                 # resolved by lid unless --lang is given
+initial_prompt_file = "prompts/initial_prompts/{lang}/phone_call.txt"
+word_timestamps = true
+
+[recognise.faster_whisper]
+compute_type_gpu = "int8_float16"
+compute_type_cpu = "int8"
+beam_size = 5
+best_of = 5
+patience = 1.0
+temperature = [0.0, 0.2, 0.4, 0.6]
+compression_ratio_threshold = 2.4
+log_prob_threshold = -1.0
+no_speech_threshold = 0.6
+condition_on_previous_text = false   # stops one bad window from contaminating the next
+repetition_penalty = 1.0
+no_repeat_ngram_size = 0
+hallucination_silence_threshold = 2.0
+vad_filter = false                    # segmentation already done by the vad stage
+
+[recognise.indic_conformer]
+decoder = "rnnt"                  # "rnnt" | "ctc"
+
+[polish]
+doubled_words_guard = true        # library/doubled_words/<lang>.txt: real repeats are never treated as loops
+loop_action = "flag"              # flag, never delete
+numerals = "defaults"
+
+[gate]
+thresholds = "gate"               # config/thresholds.toml [gate]
+
+[export]
+formats = "defaults"

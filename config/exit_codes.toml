@@ -1,0 +1,87 @@
+# Every way a trx command can end. Each command prints ONE final JSON line containing code, name, meaning, next.
+# An operator (person or model) only needs this table: read `name`, do exactly what `next` says.
+
+[OK]
+code = 0
+meaning = "Finished successfully."
+next = "Nothing more to do for this command. After `trx transcribe`, read <run>/report.md and <run>/out/review_list.md."
+
+[USAGE]
+code = 2
+meaning = "The command was typed wrong (unknown command, missing argument)."
+next = "Run `trx help` and retype the command exactly as shown there."
+
+[INPUT_NOT_FOUND]
+code = 10
+meaning = "The input file does not exist at the given path."
+next = "Check the path (quote it if it has spaces) and run the same command again."
+
+[INPUT_UNREADABLE]
+code = 11
+meaning = "ffprobe could not read the file as media, or the input is a URL / not a local file."
+next = "Give a local audio or video file. If it is a local file, it is damaged or an unsupported format; tell the owner."
+
+[INPUT_NO_AUDIO]
+code = 12
+meaning = "The file has no audio stream."
+next = "Give a file that contains audio. Do not retry this file."
+
+[INPUT_TOO_SHORT]
+code = 13
+meaning = "The audio is shorter than the minimum length in config/thresholds.toml [probe].min_duration_sec."
+next = "Nothing to transcribe. Report it to the owner; do not retry."
+
+[STAGE_NOT_INSTALLED]
+code = 20
+meaning = "A pipeline stage needed by the selected recipe is not installed yet (it belongs to a later phase or tier)."
+next = "Run `trx doctor` to see what is installed. Installing needs the owner's OK and internet (setup/); never install during a run."
+
+[MODEL_MISSING]
+code = 21
+meaning = "A model file listed in manifest.toml is not present in toolchain/models/."
+next = "Run `trx doctor`. Do not download anything yourself; tell the owner which model is missing."
+
+[MODEL_HASH_MISMATCH]
+code = 22
+meaning = "A model file's sha256 does not match manifest.toml (corrupt or replaced)."
+next = "Stop. Tell the owner. Do not use the environment until the model is restored."
+
+[CONFIG_INVALID]
+code = 30
+meaning = "A file in config/ or recipes/ failed to load or failed its checks."
+next = "Run `trx doctor` to see which file and why. Do not edit config during a run; report to the maintainer."
+
+[SCHEMA_INVALID]
+code = 31
+meaning = "A file the pipeline produced does not match its JSON Schema (a pipeline bug)."
+next = "Keep the run folder as it is and report the run id to the maintainer."
+
+[OFFLINE_GUARD_FAILED]
+code = 40
+meaning = "The offline guard could not be proven active, so the run was not started."
+next = "Do not run anything. Report to the maintainer with the `trx doctor --offline` output."
+
+[NETWORK_BLOCKED]
+code = 41
+meaning = "Something inside the run tried to reach the internet and was blocked."
+next = "Keep the run folder. Report the run id to the maintainer; a component is not configured for offline use."
+
+[DISK_LOW]
+code = 50
+meaning = "Free disk space is below config/defaults.toml [runtime].min_free_gb."
+next = "Free disk space (or ask the owner to), then run the same command again."
+
+[DOCTOR_FAILED]
+code = 60
+meaning = "One or more required checks in `trx doctor` failed."
+next = "Read the FAIL lines above this status line; report them to the maintainer. Do not start runs until doctor passes."
+
+[RUN_NOT_FOUND]
+code = 61
+meaning = "No run folder with that id exists in runs/."
+next = "List runs/ and use one of the folder names exactly."
+
+[INTERNAL_ERROR]
+code = 70
+meaning = "An unexpected error inside trx."
+next = "Keep the run folder and the full console output; report both to the maintainer."

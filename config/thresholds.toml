@@ -1,0 +1,32 @@
+# Every numeric threshold the pipeline uses. Provisional values are marked; `trx eval` tunes them (MAINTAINER.md).
+
+[probe]
+min_duration_sec = 0.5
+frame_ms = 30
+dup_mono_min_correlation = 0.99     # two channels this similar are one signal copied twice
+dup_mono_max_level_diff_db = 1.0
+narrowband_max_rolloff_hz = 3800    # 95 % energy rolloff below this = telephone band (300-3400 Hz)
+wideband_max_rolloff_hz = 7500
+activity_margin_db = 10.0           # frame counts as active if it is this far above the noise floor
+activity_min_dbfs = -60.0
+clip_level = 0.999
+warn_clipping_ratio = 0.001
+warn_low_snr_db = 10.0
+warn_quiet_lufs = -35.0
+warn_low_activity_ratio = 0.10
+
+[verify]                            # Phase 2 (provisional)
+min_agreement = 0.80                # engine-vs-engine character agreement per window
+min_avg_logprob = -1.0
+max_no_speech_prob = 0.60
+max_compression_ratio = 2.4
+omission_min_speech_sec = 1.5       # VAD speech this long with no text = omission flag
+
+[gate]                              # Phase 2 (provisional)
+review_if_flagged_ratio_above = 0.05
+fail_if_flagged_ratio_above = 0.40
+fail_if_no_text = true
+
+[llm_cleanup]                       # the 5 rejection gates (from FMS, kept as-is)
+max_edit_ratio = 0.40
+min_length_ratio = 0.50

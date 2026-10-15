@@ -1,0 +1,175 @@
+"""The runtime orchestrator: one input -> one run folder. Deterministic, offline, no AI steering.
+
+Order: preflight -> ingest (read-only copy + hash) -> probe -> select -> plan -> stages from the plan -> report.
+Every step is logged in decisions.json and every file is hashed into custody.json.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import stat
+import subprocess
+from pathlib import Path
+
+from .common import (RUNS_DIR, TrxError, env_version, load_config, local_stamp, safe_case_name, sha256_file,
+                     write_json)
+from .guards import offline
+from .recipes import build_plan
+from .records import Custody, Decisions
+from .schema_check import validate
+from .stages import IMPLEMENTED
+from .stages.probe import _URL, probe
+from .stages.select import select
+
+RUN_GITIGNORE = "input/\nwork/\n"
+
+
+def preflight() -> dict:
+    ok, detail = offline.self_test()
+    if not ok:
+        raise TrxError("OFFLINE_GUARD_FAILED", detail)
+    min_gb = float(load_config("defaults")["runtime"]["min_free_gb"])
+    free_gb = shutil.disk_usage(RUNS_DIR).free / 1e9
+    if free_gb < min_gb:
+        raise TrxError("DISK_LOW", f"{free_gb:.1f} GB free, need {min_gb} GB")
+    return {"offline": detail, "free_gb": round(free_gb, 1)}
+
+
+def _validated_write(path: Path, data, schema: str) -> None:
+    errors = validate(data, schema)
+    if errors:
+        raise TrxError("SCHEMA_INVALID", f"{path.name}: " + "; ".join(errors[:5]))
+    write_json(path, data)
+
+
+def _git_commit(run_dir: Path, message: str) -> str:
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=run_dir, capture_output=True, text=True, timeout=60)
+    try:
+        if not (run_dir / ".git").exists():
+            git("init", "-q")
+        git("add", "-A")
+        res = git("commit", "-q", "-m", message)
+        return "committed" if res.returncode == 0 else f"not committed: {res.stderr.strip()[:120]}"
+    except Exception as e:  # noqa: BLE001
+        return f"not committed: {e}"
+
+
+def _write_report(run_dir: Path, run_id: str, verdict: str, reasons: list, exit_name: str, plan: dict | None,
+                  passport: dict | None, custody: Custody | None) -> None:
+    stages = [{"name": s["name"], "status": s["status"], "available_from_phase": s["available_from_phase"]}
+              for s in (plan or {}).get("stages", [])]
+    outputs = {p.name: f"out/{p.name}" for p in sorted((run_dir / "out").glob("*")) if p.is_file()}
+    report = {
+        "schema": "trx.report/1", "env_version": env_version(), "run_id": run_id, "verdict": verdict,
+        "reasons": reasons, "exit_name": exit_name,
+        "recipe": (plan or {}).get("recipe", {}).get("id", "none"),
+        "stages": stages, "outputs": outputs,
+        "metrics": {} if passport is None else {
+            "duration_sec": passport["container"]["duration_sec"],
+            "snr_db_estimate": passport["noise"]["snr_db_estimate"],
+            "bandwidth": passport["bandwidth"]["class"],
+            "layout": passport["channels"]["layout_class"],
+        },
+    }
+    _validated_write(run_dir / "report.json", report, "report")
+    lines = [f"# Run {run_id}", "", f"**Verdict: {verdict}**  (exit: {exit_name}, env {env_version()})", ""]
+    lines += ["## Why"] + [f"- {r}" for r in reasons] + [""]
+    if passport:
+        lines += ["## The audio", f"- {passport['container']['duration_sec']} s, {passport['stream']['codec']}, "
+                  f"{passport['stream']['sample_rate']} Hz, layout: {passport['channels']['layout_class']}",
+                  f"- band: {passport['bandwidth']['class']}, SNR estimate: {passport['noise']['snr_db_estimate']} dB, "
+                  f"loudness: {passport['levels']['integrated_lufs']} LUFS"]
+        lines += [f"- warning: {w}" for w in passport["warnings"]] + [""]
+    if plan:
+        lines += ["## Plan", f"- recipe `{plan['recipe']['id']}` (rule {plan['selected_by']['rule_id']}: "
+                  f"{plan['selected_by']['reason']})"]
+        lines += [f"- {s['name']}: {s['status']}" + (f" (arrives in phase {s['available_from_phase']})"
+                  if s["status"] == "not_installed" else "") for s in plan["stages"]] + [""]
+    lines += ["## Records", "- passport.json, plan.json, decisions.json, custody.json (sha256 of every file)", ""]
+    (run_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")
+    if custody:
+        custody.add(run_dir / "report.json", "record", "report")
+
+
+def transcribe(input_path: str, forced_recipe: str | None = None, style: str | None = None,
+               lang: str | None = None, case: str | None = None) -> tuple[str, dict]:
+    pre = preflight()
+    if _URL.match(str(input_path)):
+        raise TrxError("INPUT_UNREADABLE", "URLs are not allowed; give a local file path")
+    src = Path(input_path).expanduser()
+    if not src.is_file():
+        raise TrxError("INPUT_NOT_FOUND", str(src))
+    if style and style not in ("verbatim", "readable"):
+        raise TrxError("USAGE", "--style must be verbatim or readable")
+
+    run_id = f"{safe_case_name(case or src.stem)}-{local_stamp()}"
+    run_dir = RUNS_DIR / run_id
+    for sub in ("input", "work", "out"):
+        (run_dir / sub).mkdir(parents=True, exist_ok=False)
+    (run_dir / ".gitignore").write_text(RUN_GITIGNORE, encoding="utf-8")
+    log = Decisions(run_dir)
+    log.add("preflight", "checked offline guard and disk", "A run starts only when it is provably offline "
+            "and has disk space.", **pre)
+
+    original_hash = sha256_file(src)
+    custody = Custody(run_dir, run_id, src.resolve(), original_hash, src.stat().st_size)
+    copy = run_dir / "input" / src.name
+    shutil.copy2(src, copy)
+    if sha256_file(copy) != original_hash:
+        raise TrxError("INTERNAL_ERROR", "input copy hash differs from the original")
+    os.chmod(copy, stat.S_IREAD)
+    custody.add(copy, "input_copy", "ingest")
+    log.add("ingest", "copied the input read-only and verified its sha256",
+            "The original is never touched; all work happens on a verified copy.",
+            original=str(src.resolve()), sha256=original_hash)
+
+    plan = passport = None
+    overrides = {k: v for k, v in {"recipe": forced_recipe, "style": style, "lang": lang}.items() if v}
+    try:
+        passport = probe(copy)
+        _validated_write(run_dir / "passport.json", passport, "passport")
+        custody.add(run_dir / "passport.json", "record", "probe")
+        log.add("probe", "measured the audio", "Recipe choice is based on measurements, not guesses.",
+                layout=passport["channels"]["layout_class"], band=passport["bandwidth"]["class"],
+                snr_db=passport["noise"]["snr_db_estimate"], warnings=passport["warnings"])
+
+        selection = select(passport, forced_recipe)
+        log.add("select", f"chose recipe '{selection['recipe']}'", selection["reason"], rule=selection["rule_id"])
+
+        plan = build_plan(run_id, selection, overrides)
+        _validated_write(run_dir / "plan.json", plan, "plan")
+        custody.add(run_dir / "plan.json", "record", "plan")
+        log.add("plan", "wrote plan.json", "plan.json is the only source of parameters for every stage.",
+                stages=[s["name"] for s in plan["stages"]])
+
+        exit_name, reasons = "OK", []
+        for st in plan["stages"]:
+            if st["status"] == "not_installed" and st["params"].get("required", True) is False:
+                st["status"] = "skipped"
+                log.add(st["name"], "skipped", "Optional stage (required = false) not installed in this phase; "
+                        "the run continues without it.", available_from_phase=st["available_from_phase"])
+                continue
+            if st["status"] == "not_installed":
+                exit_name = "STAGE_NOT_INSTALLED"
+                reasons.append(f"Stopped at stage '{st['name']}': it arrives in phase {st['available_from_phase']}.")
+                log.add(st["name"], "stopped", "This stage is not installed in the current environment phase.",
+                        available_from_phase=st["available_from_phase"])
+                break
+            IMPLEMENTED[st["name"]](run_dir, st["params"], log, custody)
+            st["status"] = "done"
+        _validated_write(run_dir / "plan.json", plan, "plan")
+        verdict = "PASS" if exit_name == "OK" else "FAIL"
+    except offline.NetworkBlocked as e:
+        exit_name, verdict, reasons = "NETWORK_BLOCKED", "FAIL", [str(e)]
+    except TrxError as e:
+        exit_name, verdict, reasons = e.name, "FAIL", [f"{e.name}: {e.detail}"]
+        log.add("run", "failed", e.detail or e.name)
+
+    _write_report(run_dir, run_id, verdict, reasons, exit_name, plan, passport, custody)
+    errors = validate(log.items, "decisions")
+    if errors:
+        exit_name = "SCHEMA_INVALID"
+    git_state = _git_commit(run_dir, f"trx {env_version()}: {verdict} ({exit_name})")
+    return exit_name, {"run_id": run_id, "run_dir": str(run_dir), "verdict": verdict,
+                       "recipe": (plan or {}).get("recipe", {}).get("id"), "reasons": reasons, "git": git_state}

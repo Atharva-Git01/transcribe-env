@@ -1,0 +1,175 @@
+# Every component of the environment. Read by `trx doctor` (status) and by setup/ (install plan).
+# Source URLs are used ONLY by setup/ after the owner's OK — never at runtime.
+# phase: when it is installed (see doc plan §7). commercial_ok: yes | conditional | no.
+# size_mb / licence marked "verify" are re-checked by `setup/fetch_models.py --check` before any download.
+
+[environment]
+name = "transcribe-env"
+cost_rule = "zero cost: no paid API, plan or service; free licences that allow commercial use"
+runtime_network = "none (offline guard); internet only in setup/ after the owner's OK"
+machine = "i5-13420H 8C/12T, 16 GB RAM, RTX 3050 Laptop 4 GB, Windows 11"
+
+# ---------------------------------------------------------------- have (phase 0)
+[[component]]
+id = "python312"
+kind = "runtime"
+phase = 0
+licence = "PSF"
+commercial_ok = "yes"
+note = "system Python 3.12.10; phase 1 creates toolchain/python/.venv from requirements.lock"
+
+[[component]]
+id = "numpy"
+kind = "python"
+phase = 0
+licence = "BSD-3-Clause"
+commercial_ok = "yes"
+
+[[component]]
+id = "ffmpeg"
+kind = "binary"
+phase = 0
+licence = "LGPL/GPL (gyan.dev full build 8.0.1)"
+commercial_ok = "yes"
+note = "decode, resample, loudness (ebur128), filters"
+
+[[component]]
+id = "git"
+kind = "binary"
+phase = 0
+licence = "GPL-2.0"
+commercial_ok = "yes"
+note = "environment history + one repo per run"
+
+# ---------------------------------------------------------------- phase 1 (bootstrap)
+[[component]]
+id = "faster_whisper"
+kind = "python"
+phase = 1
+licence = "MIT"
+commercial_ok = "yes"
+source = "https://github.com/SYSTRAN/faster-whisper"
+note = "with ctranslate2 + CUDA 12 cuBLAS/cuDNN pip wheels for the RTX 3050"
+size_mb = "verify (~1200 incl. CUDA libs)"
+
+[[component]]
+id = "faster_whisper_medium"
+kind = "model"
+phase = 1
+licence = "MIT"
+commercial_ok = "yes"
+path = "toolchain/models/faster-whisper-medium"
+source = "https://huggingface.co/Systran/faster-whisper-medium"
+size_mb = 1500
+note = "already in the HF cache; setup copies it in and records sha256 (no download)"
+
+[[component]]
+id = "silero_vad"
+kind = "model"
+phase = 1
+licence = "MIT"
+commercial_ok = "yes"
+path = "toolchain/models/silero-vad"
+source = "https://github.com/snakers4/silero-vad"
+size_mb = 2
+
+[[component]]
+id = "deep_filter"
+kind = "binary"
+phase = 1
+licence = "MIT OR Apache-2.0"
+commercial_ok = "yes"
+path = "toolchain/bin/deep-filter"
+source = "https://github.com/Rikorose/DeepFilterNet/releases"
+size_mb = "verify"
+note = "DeepFilterNet3 standalone binary: no torch needed"
+
+[[component]]
+id = "noisereduce"
+kind = "python"
+phase = 1
+licence = "MIT"
+commercial_ok = "yes"
+note = "denoise fallback"
+
+# ---------------------------------------------------------------- phase 2 (engines)
+[[component]]
+id = "faster_whisper_large_v3"
+kind = "model"
+phase = 2
+licence = "MIT"
+commercial_ok = "yes"
+path = "toolchain/models/faster-whisper-large-v3"
+source = "https://huggingface.co/Systran/faster-whisper-large-v3"
+size_mb = 3100
+
+[[component]]
+id = "faster_whisper_large_v3_turbo"
+kind = "model"
+phase = 2
+licence = "MIT"
+commercial_ok = "yes"
+path = "toolchain/models/faster-whisper-large-v3-turbo"
+source = "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+size_mb = 1600
+
+[[component]]
+id = "indic_conformer_600m"
+kind = "model"
+phase = 2
+licence = "MIT (per AIKosh / model listings — confirm on the model card before download)"
+commercial_ok = "verify"
+path = "toolchain/models/indic-conformer-600m-multilingual"
+source = "https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual"
+size_mb = "verify (~2400)"
+note = "runtime code is vendored and pinned; no trust_remote_code downloads at runtime"
+
+[[component]]
+id = "indicwhisper"
+kind = "model"
+phase = 99
+licence = "not stated"
+commercial_ok = "no"
+note = "EXCLUDED until a licence is published (Vistaar, reported Marathi avg WER 18.2%)"
+
+# ---------------------------------------------------------------- phase 3 (cleanup)
+[[component]]
+id = "llama_cpp"
+kind = "binary"
+phase = 3
+licence = "MIT"
+commercial_ok = "yes"
+path = "toolchain/bin/llama.cpp"
+source = "https://github.com/ggml-org/llama.cpp/releases"
+note = "single binary, no background service, no auto-update"
+
+[[component]]
+id = "gemma3_4b_it_q4"
+kind = "model"
+phase = 3
+licence = "Gemma Terms of Use"
+commercial_ok = "conditional"
+path = "toolchain/models/gemma-3-4b-it-q4"
+source = "https://huggingface.co/google/gemma-3-4b-it-qat-q4_0-gguf"
+size_mb = "verify (~2500)"
+note = "owner's choice; Google's repo is gated (free HF account); commercial use allowed under the Gemma use policy"
+
+# ---------------------------------------------------------------- phase 4 (hard audio)
+[[component]]
+id = "sherpa_onnx"
+kind = "binary"
+phase = 4
+licence = "Apache-2.0"
+commercial_ok = "yes"
+path = "toolchain/bin/sherpa-onnx"
+source = "https://github.com/k2-fsa/sherpa-onnx/releases"
+note = "speaker diarization without torch or an account"
+
+[[component]]
+id = "demucs"
+kind = "python"
+phase = 4
+licence = "MIT"
+commercial_ok = "yes"
+source = "https://github.com/adefossez/demucs"
+size_mb = "verify (needs torch CPU)"

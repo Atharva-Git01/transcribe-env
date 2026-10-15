@@ -1,0 +1,12 @@
+# runs are evidence with their own git repo each; inbox holds incoming files
+runs/*
+!runs/.gitkeep
+inbox/*
+!inbox/.gitkeep
+# large, rebuildable by setup/
+toolchain/python/
+toolchain/models/
+toolchain/bin/
+__pycache__/
+*.pyc
+*.tmp
