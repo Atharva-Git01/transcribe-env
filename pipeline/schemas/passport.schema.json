@@ -89,6 +89,15 @@
       "required": ["top3", "code_switch_risk", "status"],
       "properties": {
         "top3": {"type": ["array", "null"]},
+        "decision": {
+          "type": "object", "additionalProperties": false,
+          "required": ["lang", "basis", "confidence"],
+          "properties": {
+            "lang": {"type": ["string", "null"]},
+            "basis": {"type": "string"},
+            "confidence": {"type": ["number", "null"]}
+          }
+        },
         "code_switch_risk": {"type": ["string", "null"]},
         "status": {"type": "string"}
       }

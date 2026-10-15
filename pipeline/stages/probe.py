@@ -50,6 +50,87 @@ def _loudness(path: Path) -> tuple[float | None, float | None]:
     return lufs, tp
 
 
+def _advanced(path: Path, duration: float, thr: dict) -> dict | None:
+    """VAD + in-speech SNR + LID. Raises ImportError when the phase 1 runtime is not installed."""
+    import faster_whisper  # noqa: F401  (ImportError -> phase 0 behaviour)
+
+    from .. import gpu
+    from ..audio import decode_mono
+    from ..common import load_config
+    from ..engines.faster_whisper_engine import make
+    from ..lid import detect, lid_engine_id, refine, windows_from_speech
+    from .vad import speech_regions
+
+    audio = decode_mono(path, 16000)  # mono mix, float32
+    vad_params = {"threshold": thr.get("vad_threshold", 0.4), "min_speech_ms": 200, "min_silence_ms": 400,
+                  "speech_pad_ms": 200, "max_segment_s": 28.0}
+    speech = speech_regions(audio, vad_params)
+    speech_sec = sum(e - s for s, e in speech)
+    res = {"active_ratio": round(min(1.0, speech_sec / max(duration, 1e-6)), 4),
+           "activity_method": f"silero_vad_v1 (threshold {vad_params['threshold']}; speech {speech_sec:.1f} s)",
+           "warnings": []}
+    # in-speech SNR: frames inside speech regions; codec-gated frames (near digital silence) excluded
+    frame = int(16000 * thr["frame_ms"] / 1000)
+    dbs = []
+    for s, e in speech:
+        seg = audio[int(s * 16000):int(e * 16000)]
+        n = seg.size // frame
+        if n:
+            p = np.mean(np.square(seg[:n * frame].reshape(n, frame), dtype=np.float64), axis=1)
+            dbs.append(10.0 * np.log10(p + 1e-12))
+    if dbs:
+        d = np.concatenate(dbs)
+        speech_level = float(np.percentile(d, 95))
+        d = d[d > max(-80.0, speech_level - thr.get("gated_frame_below_peak_db", 60.0))]
+        if d.size >= 20:
+            noise_floor = float(np.percentile(d, 10))
+            res.update(noise_floor=noise_floor, speech_level=speech_level, snr=max(0.0, speech_level - noise_floor),
+                       noise_method="vad_inspeech_percentile_v1 (10th vs 95th percentile of 30 ms frames inside VAD "
+                                    "speech, codec-gated frames excluded)")
+    # language ID on windows spread over the speech
+    eng_id = lid_engine_id()
+    if eng_id and speech_sec >= 1.0:
+        cfg = load_config("defaults")["languages"]
+        cands = list(cfg["priority"])
+        eng = make(eng_id)
+        eng.load(gpu.choose_device(), {})
+        try:
+            wins = windows_from_speech(speech, duration, int(cfg.get("lid_windows", 6)), float(cfg.get("lid_window_sec", 30)))
+            lid = detect(eng, audio, wins, cands)
+            ref = refine(eng, audio, speech, lid) if lid["top3"] else None
+        finally:
+            eng.unload()
+        if lid["top3"] and ref:
+            ev = ref["evidence"]
+            res["language"] = {
+                "top3": lid["top3"],
+                "decision": {"lang": ref["decision"], "basis": ref["basis"], "confidence": ref["confidence"]},
+                "code_switch_risk": ref["code_switch_risk"],
+                "status": (f"measured with {eng_id}: acoustic per-window tops {[w['top'] for w in lid['per_window']]}; "
+                           f"forced-decode log-prob mr {ev['ll_mr']} / hi {ev['ll_hi']} on {ev['groups']} speech groups; "
+                           f"distinct markers mr {ev['mr_markers']} / hi {ev['hi_markers']}"),
+            }
+            weak_indic = ref["decision"] in ("mr", "hi") and (
+                ref["confidence"] is None or ref["confidence"] < float(cfg.get("text_lid_min_confidence", 0.65)))
+            if weak_indic:
+                res["warnings"].append(f"language_ambiguous: decided {ref['decision']} on weak evidence "
+                                       f"({ref['basis']}); confirm or rerun with --lang")
+    elif speech_sec < 1.0:
+        res["warnings"].append("almost_no_speech: Silero VAD found under 1 s of speech")
+
+    # speaker count (phase 4, sherpa-onnx) for files up to [probe].diarize_max_minutes — feeds rule R3
+    try:
+        from .diarize_sherpa import AVAILABLE, diarize
+    except ImportError:
+        AVAILABLE = False
+    if AVAILABLE and speech_sec >= 2.0 and duration <= 60 * float(thr.get("diarize_max_minutes", 15)):
+        turns = diarize(audio)
+        speakers = {t["speaker"] for t in turns}
+        res["speakers"] = {"estimate": len(speakers),
+                           "status": f"measured: sherpa-onnx diarization, {len(turns)} turns"}
+    return res
+
+
 def probe(path: Path) -> dict:
     thr = load_config("thresholds")["probe"]
     sr = int(load_config("defaults")["runtime"]["analysis_sample_rate"])
@@ -171,6 +252,28 @@ def probe(path: Path) -> dict:
     lufs, tp = _loudness(path)
     clipping_ratio = clip / (total * channels)
     warnings = []
+
+    # Phase 1+: Silero VAD activity, in-speech SNR (E09) and Whisper LID — measured BEFORE the recipe is chosen.
+    noise_method = "energy_percentile_v1 (10th vs 95th percentile of 30 ms frame energy)"
+    activity_method = (f"energy_v1 (frame > max(noise_floor + {thr['activity_margin_db']} dB, "
+                       f"{thr['activity_min_dbfs']} dBFS))")
+    language = {"top3": None, "code_switch_risk": None, "status": "not_measured: no LID engine installed"}
+    speakers = {"estimate": None, "status": "not_measured: diarization not installed or file too long"}
+    try:
+        adv = _advanced(path, duration, thr)
+    except ImportError:
+        adv = None
+    if adv:
+        active_ratio = adv["active_ratio"]
+        activity_method = adv["activity_method"]
+        if adv.get("snr") is not None:
+            noise_floor, speech_level, snr = adv["noise_floor"], adv["speech_level"], adv["snr"]
+            noise_method = adv["noise_method"]
+        if adv.get("language"):
+            language = adv["language"]
+        if adv.get("speakers"):
+            speakers = adv["speakers"]
+        warnings += adv.get("warnings", [])
     if layout == "duplicated_mono":
         warnings.append("duplicated_mono: both channels carry the same signal; treated as mono (never as 2 speakers)")
     if clipping_ratio > thr["warn_clipping_ratio"]:
@@ -222,15 +325,12 @@ def probe(path: Path) -> dict:
             "noise_floor_dbfs": r(noise_floor),
             "speech_level_dbfs": r(speech_level),
             "snr_db_estimate": r(snr),
-            "method": "energy_percentile_v1 (10th vs 95th percentile of 30 ms frame energy; replaced by VAD-based in phase 1)",
+            "method": noise_method,
         },
         "bandwidth": {"rolloff95_hz_median": r(rolloff, 0), "class": band, "analysis_sample_rate": sr},
-        "activity": {
-            "active_ratio": round(active_ratio, 4),
-            "method": f"energy_v1 (frame > max(noise_floor + {thr['activity_margin_db']} dB, {thr['activity_min_dbfs']} dBFS))",
-        },
-        "language": {"top3": None, "code_switch_risk": None, "status": "not_measured: language ID arrives in phase 1"},
-        "speakers": {"estimate": None, "status": "not_measured: diarization arrives in phase 4"},
-        "music": {"present": None, "status": "not_measured: separation arrives in phase 4"},
+        "activity": {"active_ratio": round(active_ratio, 4), "method": activity_method},
+        "language": language,
+        "speakers": speakers,
+        "music": {"present": None, "status": "not_measured: no separation model installed (Demucs, QUESTIONS.md Q6)"},
         "warnings": warnings,
     }

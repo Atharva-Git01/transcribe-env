@@ -1,0 +1,2 @@
+# Installed with --no-deps: cuDNN 9 for CUDA 12 (cuBLAS comes from toolchain/bin/cuda12, see setup/sources.toml)
+nvidia-cudnn-cu12==9.27.0.42 --hash=sha256:06e9b0026f3bad97d2b58666330fabec04fe1672f776661ecb0ce0029c27f142

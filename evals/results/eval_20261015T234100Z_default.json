@@ -1,0 +1,27 @@
+{
+  "schema": "trx.eval/1",
+  "env_version": "0.5.0",
+  "utc": "2026-10-15T23:41:00Z",
+  "overrides": {
+    "engine": null,
+    "recipe": null,
+    "lang": null
+  },
+  "rows": [
+    {
+      "fixture": "pappa_260603_211622",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "phone_call_mono",
+      "engines": [
+        "faster_whisper_large_v3"
+      ],
+      "language": "mr",
+      "cer": 0.5308,
+      "wer": 0.8438,
+      "seconds": 241.3,
+      "run_id": "eval_pappa_260603_211622-20261016-050659",
+      "flagged_time_ratio": 0.2854
+    }
+  ]
+}

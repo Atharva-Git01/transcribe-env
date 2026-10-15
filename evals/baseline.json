@@ -1,13 +1,25 @@
 {
   "schema": "trx.baseline/1",
-  "env_version": "0.1.0-phase0",
-  "scores": {},
+  "env_version": "0.5.0",
+  "scores": {
+    "pappa_260603_211622|phone_call_mono|faster_whisper_large_v3|mr": {
+      "cer": 0.5308,
+      "wer": 0.8438,
+      "env_version": "0.5.0",
+      "utc": "2026-10-15T23:35:26Z"
+    }
+  },
   "references": {
     "pappa_260603_211622": {
       "source": "FMS multilingual_transcription (large-v3, CUDA, forced mr, DeepFilterNet), 2026",
-      "cer": [0.7225, 0.736],
-      "comparable": false,
-      "note": "FMS used its own normalisation; trx re-scores under pipeline/metrics.py once phase 1 runs"
+      "cer": [
+        0.7225,
+        0.736
+      ],
+      "comparable": "trx_metric_cer only",
+      "note": "FMS reported CER 0.7225-0.736 with its own normalisation. Re-scored 2026-10-16 with pipeline/metrics.py on ONE copy of its output (FMS duplicated the mono call as SPEAKER_00/01, E01): CER 0.7445, WER 0.9141. Source: forensic media suit/multilingual_transcription/data/samples/out/*Pappa*_result.json",
+      "trx_metric_cer": 0.7445,
+      "trx_metric_wer": 0.9141
     }
   }
 }

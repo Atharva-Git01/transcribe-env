@@ -53,12 +53,91 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Seen (2026-10-16, phase 0 probe of the Pappa call):** SNR estimate 42.6 dB, yet FMS found denoising essential
   for this call. Phone codecs gate the gaps between words to near-digital silence, so "quietest frames vs loudest
   frames" measures gap silence, not the noise under the speech.
-- **Fix (phase 1):** add an in-speech estimate (WADA-SNR on VAD speech regions) and use it for rule R4.
-- **Check:** passport `noise.method` names the method; compare with the phase 1 value on the same file.
-- **Rule:** until then, rule R4 (noisy) can under-fire on phone audio; the phone recipe denoises regardless.
+- **Fix (phase 1, done):** `noise.method = vad_inspeech_percentile_v1` — noise floor measured inside Silero VAD speech
+  regions, ignoring codec-gated frames (more than `gated_frame_below_peak_db` below the peak).
+- **Check:** passport `noise.method` names the method; the energy value is kept next to it for comparison.
+- **Rule:** rule R4 (noisy) reads only the in-speech estimate; the phone recipe denoises regardless.
 
 ## E08 — A tool reached the internet on its own
 - **Seen (2026-10-16):** running `ollama list` started the Ollama app, which downloaded an update by itself.
 - **Fix:** Gemma 3 runs through llama.cpp (no service, no updater); runtime offline guard; `OLLAMA_NO_UPDATE` set.
 - **Check:** `trx doctor --offline`.
 - **Rule:** nothing in the runtime may have a background updater or a first-use download.
+
+## E10 — Whisper's language ID cannot see Marathi
+- **Seen (2026-10-16, phase 2):** on the Pappa call (Marathi, human truth) every Whisper engine's acoustic LID gave
+  mr ≈ 0.001 and hi ≈ 0.99 on every window. Marathi and Hindi share script and much vocabulary; Whisper had little
+  Marathi training data. Trusting it would transcribe Marathi as Hindi.
+- **Fix:** 2-step LID (`pipeline/lid.py`): (1) acoustic LID on 6 windows, (2) for mr/hi, forced decoding of speech
+  groups in BOTH languages, compare average log-probs (margin `text_lid_ll_margin`), then count Marathi markers that
+  survive in the Hindi-forced text vs Hindi markers in the Marathi-forced text (`text_lid_min_markers`).
+  Confidence below `text_lid_min_confidence` → decision = priority language (mr) + warning `language_ambiguous`.
+- **Check:** passport `language.decision` {lang, basis, confidence}; the gate turns `language_ambiguous` into REVIEW
+  unless the operator forced `--lang`.
+- **Rule:** never trust acoustic LID alone for mr/hi. A weak decision is a REVIEW, not a PASS.
+
+## E11 — Marker counting inflated by decoder loops
+- **Seen (2026-10-16):** a looping segment "आता हूँ. आता हूँ. …" counted as many Hindi markers and flipped the
+  text-based language decision.
+- **Fix:** count DISTINCT marker types per language; looping segments are dropped before counting; the cross-forced
+  "survivor" test (markers that appear even when the OTHER language is forced) carries the decision.
+- **Check:** `tests/test_core.py::TestLidEvidence` (a loop counts once).
+- **Rule:** any count-based evidence must be robust to repetition.
+
+## E12 — faster-whisper's audio decoder broke on PyAV 19
+- **Seen (2026-10-16, phase 1):** `faster_whisper.decode_audio` passed a `metadata_errors` argument that av 19.0.1
+  no longer accepts → crash before recognition.
+- **Fix:** `pipeline/audio.decode_mono` decodes through ffmpeg (f32le pipe, 16 kHz mono); faster-whisper only ever
+  receives numpy arrays.
+- **Rule:** all decoding goes through ffmpeg; library decoders are not used.
+
+## E13 — A half-downloaded model looked installed
+- **Seen (2026-10-16, setup):** large-v3's model.bin download stopped at 75 MB; the file existed, so a "file exists"
+  check would have called it installed. A later retry failed the sha256 check once more before succeeding.
+- **Fix:** a model counts as installed only when `SOURCE.json` exists — written by setup only after every file's
+  sha256 and size match `setup/sources.toml`. `trx doctor` checks sizes; `trx doctor --deep` re-hashes.
+- **Rule:** never mark a component installed on file presence alone.
+
+## E14 — Long recognition segments hide loops and make the gate FAIL everything
+- **Seen (2026-10-16, phase 2 eval):** with `vad_filter` segmentation, faster-whisper merged the call's speech into
+  two segments (0.4–33.6 s and 33.6–55.3 s). One "आता हूँ" loop flagged the first 33 s → 100 % flagged → FAIL,
+  even though CER (0.72) equalled FMS large-v3.
+- **Why (two causes):** long output segments, and faster-whisper giving every segment its 30 s window's
+  compression ratio, so one loop marked the whole window "repetitive".
+- **Fix:** keep `vad_concat` decoding (most context — per-group `clips` scored worse once seeded, E18) but cut output
+  segments longer than `split_max_s` (10 s) at word boundaries (text unchanged), and compute the compression ratio
+  per segment (window value kept as `window_compression_ratio`).
+- **Check:** the gate's hard-flag ratio; `tests/test_core.py::TestSegmentation`.
+- **Rule:** segment length is a recipe parameter, not an engine default.
+
+## E15 — Disk ran out during installs
+- **Seen (2026-10-16, setup):** C: dropped to 1.5 GB free while Gemma was downloading; later the Windows pagefile
+  grew to 10.6 GB while large-v3 loaded and C: fell from ~9.8 GB to 3.6 GB free.
+- **Fix:** large models on D: via junctions; downloads stop when C: is low; `[runtime] min_free_gb` in doctor.
+- **Check:** `trx doctor` → `disk`.
+- **Rule:** check free space before any install; the pagefile shrinks back only after a reboot.
+
+## E16 — A character loop in the wrong script was not flagged
+- **Seen (2026-10-16, phase 2):** one engine produced a long run of a Bengali letter ("ববববব…") inside Marathi text;
+  the word-loop detector saw a single "word" and did not flag it.
+- **Fix:** polish flags `CHAR_RUN` (same character ≥ 8 times) and `wrong_script` (letters outside Devanagari/Latin).
+- **Check:** `tests/test_core.py::TestPolish`.
+- **Rule:** loop detection works on characters as well as words.
+
+## E17 — LLM cleanup changed meaning while passing every gate
+- **Seen (2026-10-16, phase 3 trial):** Gemma 3 4B fixed spelling well (~0.9 s per segment after warm-up), but one
+  suggestion changed a word's meaning and still passed the length/edit-ratio/entity gates.
+- **Fix:** `[llm_cleanup] enabled = false` by default; when enabled, the ASR text stays in `text_asr` and every
+  accepted edit is logged in `work/llm_cleanup.json`.
+- **Rule:** cleanup is enabled only after `trx eval` shows it lowers CER on the fixtures. In `verbatim` style the
+  prompt adds `verbatim_rule` (fix spelling only, keep fillers/repeats/code-switches).
+
+## E18 — The same file gave different transcripts on different runs
+- **Seen (2026-10-16, phase 2 eval):** turbo on the Pappa call scored CER 0.720 in one run and 0.793 in the next
+  with identical settings. Whisper's temperature fallback (t = 0.2 … 0.6 when a window looks like a loop) samples
+  randomly, and CTranslate2's random generator was never seeded.
+- **Fix:** `ctranslate2.set_random_seed(config/defaults.toml [runtime].seed)` before every decode
+  (`pipeline/engines/faster_whisper_engine.py`). Two runs now give identical CER (0.7930, 0.7930).
+- **Check:** run `trx eval` twice; the numbers must match exactly.
+- **Rule:** every stochastic step is seeded from `[runtime].seed`; an eval result that cannot be reproduced is not
+  evidence. Numbers measured before this fix (CHANGELOG) are marked "unseeded".

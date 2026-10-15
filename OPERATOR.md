@@ -46,7 +46,10 @@ Quote paths that contain spaces.
 - Never retry the same file more than once without a different instruction from the owner.
 - Never present a transcript as final if the verdict is `REVIEW` or `FAIL`.
 
-## Phase status
+## What to expect
 
-Phase 0 (current): `transcribe` creates the run, copies + hashes the input, measures it, picks a recipe and writes the
-plan, then stops with `STAGE_NOT_INSTALLED` because the transcription stages arrive in phase 1. This is expected.
+- A 1-minute phone call takes about 1.5–5 minutes (the first load of a model from the D: USB drive is slow).
+- `REVIEW` is normal for hard phone audio: it means some lines are uncertain, not that the run broke.
+- If the last line says `MODEL_MISSING` and mentions large-v3 or Gemma: the D: USB drive is not connected. Report it;
+  do not try to fix it.
+- If the last line says `DISK_LOW`: report it; do not delete anything.

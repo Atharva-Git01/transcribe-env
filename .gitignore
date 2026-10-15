@@ -10,3 +10,7 @@ toolchain/bin/
 __pycache__/
 *.pyc
 *.tmp
+evals/runs/
+setup/logs/
+toolchain/downloads/
+toolchain/*.log

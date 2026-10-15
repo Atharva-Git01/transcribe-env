@@ -1,0 +1,26 @@
+{
+  "schema": "trx.eval/1",
+  "env_version": "0.1.0-phase0",
+  "utc": "2026-10-15T20:09:34Z",
+  "overrides": {
+    "engine": "faster_whisper_large_v3_turbo",
+    "recipe": null
+  },
+  "rows": [
+    {
+      "fixture": "pappa_260603_211622",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "code_switched",
+      "engines": [
+        "faster_whisper_large_v3_turbo"
+      ],
+      "language": "hi",
+      "cer": 0.7797,
+      "wer": 1.0312,
+      "seconds": 86.6,
+      "run_id": "eval_pappa_260603_211622-20261016-013807",
+      "flagged_time_ratio": 0.248
+    }
+  ]
+}

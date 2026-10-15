@@ -1,10 +1,10 @@
 [recipe]
 id = "true_stereo_call"
-version = 1
+version = 2
 description = "Two genuinely different channels (e.g. call recorder with one party per channel)."
 when_to_use = "channels.layout_class == true_stereo (correlation below 0.99 or level difference above 1 dB)."
 when_not_to_use = "Duplicated mono (identical channels) — that is phone_call_mono."
-stages = ["convert", "denoise", "vad", "lid", "diarize", "recognise", "polish", "gate", "export"]
+stages = ["convert", "denoise", "vad", "lid", "diarize", "recognise", "verify", "polish", "gate", "export"]
 
 [convert]
 channels = "split"                # each channel processed on its own
@@ -14,7 +14,7 @@ sample_rate = 16000
 
 [denoise]
 engine = "deep_filter"
-fallback = ["noisereduce", "copy_through"]
+fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 18.0
 
@@ -39,6 +39,10 @@ crosstalk_suppression_db = 12.0   # a segment also present >12 dB quieter on the
 language = "auto"
 initial_prompt_file = "prompts/initial_prompts/{lang}/phone_call.txt"
 word_timestamps = true
+segmentation = "vad_concat"        # "vad_concat" (speech joined into <= 30 s windows; best CER, E14) | "clips"
+split_max_s = 10.0                # output segments longer than this are cut at word boundaries (text unchanged)
+group_max_s = 20.0               # clips mode only: VAD regions merged into clips of at most this length
+group_max_gap_s = 0.8             # clips mode only: regions closer than this are merged
 
 [recognise.faster_whisper]
 compute_type_gpu = "int8_float16"
@@ -54,15 +58,12 @@ condition_on_previous_text = false
 repetition_penalty = 1.0
 no_repeat_ngram_size = 0
 hallucination_silence_threshold = 2.0
-vad_filter = false
 
-[recognise.indic_conformer]
-decoder = "rnnt"
+[verify]
+required = false                  # runs only when config/defaults.toml [engines.cross_check].enabled = true
 
 [polish]
 doubled_words_guard = true
-loop_action = "flag"
-numerals = "defaults"
 
 [gate]
 thresholds = "gate"

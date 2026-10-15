@@ -14,7 +14,7 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 | `config/selection_rules.toml` | add/reorder a rule, adjust a condition value |
 | `config/thresholds.toml` | tune a threshold |
 | `config/defaults.toml` | engine per language (only from eval winners), output defaults |
-| `recipes/*.toml` | stage params; bump `[recipe].version` on every change |
+| `recipes/*.toml` | stage params; bump `[recipe].version` on every change; a NEW key also needs code that reads it + an entry in `pipeline/recipes.py STAGE_KEYS` |
 | `prompts/**` | initial prompts, Gemma 3 cleanup prompts |
 | `library/**` | vocab, doubled words, hotwords |
 | `references/**`, `knowledge/**` | documentation, ERRORS entries |
@@ -22,7 +22,8 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 
 ## The gate (no exceptions)
 1. Make the change on a branch: `git switch -c tune/<short-name>`.
-2. Run `trx doctor --offline` → must be OK.
+2. Run `trx doctor --offline` and `trx test` → both must be OK (the test suite also rejects recipe keys no
+   stage reads — see `pipeline/recipes.py STAGE_KEYS`).
 3. Run `trx eval` → compare with `evals/baseline.json`.
    - Accept only if the target score improves AND no recipe × engine × fixture gets worse beyond the noise margin
      in `evals/README.md`.
@@ -39,4 +40,5 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 ## Never
 - Never change anything during a run or inside `runs/`.
 - Never add a component that needs the internet at runtime, a background service, or an auto-updater.
-- Never accept a change without an eval result (before phase 1 scoring exists: doctor + schema checks only).
+- Never accept a change without an eval result. With only one fixture, treat small gains as noise and ask the
+  owner for more labelled audio (QUESTIONS.md).

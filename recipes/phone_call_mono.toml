@@ -2,11 +2,11 @@
 
 [recipe]
 id = "phone_call_mono"
-version = 1
+version = 2
 description = "Telephone-band call recorded on one channel (or two identical channels). Marathi/Hindi likely."
 when_to_use = "bandwidth.class == narrowband; layout mono or duplicated_mono; SNR >= 12 dB."
 when_not_to_use = "Two genuinely different channels (use true_stereo_call); heavy noise (noisy_field_audio)."
-stages = ["convert", "denoise", "vad", "lid", "recognise", "polish", "gate", "export"]
+stages = ["convert", "denoise", "vad", "lid", "recognise", "verify", "polish", "gate", "export"]
 
 [convert]
 channels = "downmix"              # duplicated mono collapses to one channel; NEVER split into fake speakers
@@ -16,7 +16,7 @@ sample_rate = 16000
 
 [denoise]
 engine = "deep_filter"            # DeepFilterNet3 binary
-fallback = ["noisereduce", "copy_through"]
+fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0           # windows quieter than this are left untouched (no artefacts on silence)
 attenuation_limit_db = 18.0       # do not remove more than this; protects soft speech
 
@@ -37,6 +37,10 @@ per_segment = false
 language = "auto"                 # resolved by lid unless --lang is given
 initial_prompt_file = "prompts/initial_prompts/{lang}/phone_call.txt"
 word_timestamps = true
+segmentation = "vad_concat"        # "vad_concat" (speech joined into <= 30 s windows; best CER, E14) | "clips"
+split_max_s = 10.0                # output segments longer than this are cut at word boundaries (text unchanged)
+group_max_s = 20.0               # clips mode only: VAD regions merged into clips of at most this length
+group_max_gap_s = 0.8             # clips mode only: regions closer than this are merged
 
 [recognise.faster_whisper]
 compute_type_gpu = "int8_float16"
@@ -52,15 +56,12 @@ condition_on_previous_text = false   # stops one bad window from contaminating t
 repetition_penalty = 1.0
 no_repeat_ngram_size = 0
 hallucination_silence_threshold = 2.0
-vad_filter = false                    # segmentation already done by the vad stage
 
-[recognise.indic_conformer]
-decoder = "rnnt"                  # "rnnt" | "ctc"
+[verify]
+required = false                  # runs only when config/defaults.toml [engines.cross_check].enabled = true
 
 [polish]
 doubled_words_guard = true        # library/doubled_words/<lang>.txt: real repeats are never treated as loops
-loop_action = "flag"              # flag, never delete
-numerals = "defaults"
 
 [gate]
 thresholds = "gate"               # config/thresholds.toml [gate]

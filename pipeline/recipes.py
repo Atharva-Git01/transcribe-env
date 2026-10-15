@@ -2,9 +2,45 @@
 from __future__ import annotations
 
 from .common import RECIPES_DIR, TrxError, env_version, load_config, load_toml, utc_now
-from .stages import CANONICAL_ORDER, IMPLEMENTED, phase_for
+from .stages import CANONICAL_ORDER, is_available, phase_for
 
 META_KEYS = ["id", "version", "description", "when_to_use", "when_not_to_use", "stages"]
+
+# Every key a stage actually reads (E05: a key nobody reads is a lie). Adding a recipe key = adding code that reads it
+# AND listing it here; `trx doctor` / `trx test` reject anything else as dead config.
+STAGE_KEYS = {
+    "convert": {"channels", "highpass_hz", "loudnorm_target_lufs", "sample_rate"},
+    "separate": {"required", "engine"},   # stage not implemented yet (Demucs needs torch); skipped while required=false
+    "denoise": {"engine", "fallback", "skip_below_dbfs", "attenuation_limit_db"},
+    "vad": {"engine", "threshold", "min_speech_ms", "min_silence_ms", "speech_pad_ms", "max_segment_s"},
+    "lid": {"mode", "candidates", "per_segment"},
+    "diarize": {"required", "mode", "num_speakers", "cluster_threshold", "min_turn_s", "crosstalk_suppression_db"},
+    "recognise": {"language", "initial_prompt_file", "word_timestamps", "segmentation", "split_max_s", "group_max_s",
+                  "group_max_gap_s"},
+    "recognise.faster_whisper": {"compute_type_gpu", "compute_type_cpu", "beam_size", "best_of", "patience",
+                                 "temperature", "compression_ratio_threshold", "log_prob_threshold",
+                                 "no_speech_threshold", "condition_on_previous_text", "repetition_penalty",
+                                 "no_repeat_ngram_size", "hallucination_silence_threshold"},
+    "verify": {"required"},
+    "polish": {"doubled_words_guard"},
+    "gate": {"thresholds"},
+    "export": {"formats"},
+}
+
+
+def _dead_keys(data: dict, stages: list[str]) -> list[str]:
+    out = []
+    for s in stages:
+        for k, v in (data.get(s) or {}).items():
+            name = f"{s}.{k}" if isinstance(v, dict) else s
+            allowed = STAGE_KEYS.get(name, set())
+            if isinstance(v, dict):
+                out += [f"[{name}] {kk}" for kk in v if kk not in allowed]
+                if name not in STAGE_KEYS:
+                    out.append(f"[{name}] (no engine reads this table)")
+            elif k not in allowed:
+                out.append(f"[{s}] {k}")
+    return out
 
 
 def check_recipe(data: dict, file_id: str) -> list[str]:
@@ -33,6 +69,9 @@ def check_recipe(data: dict, file_id: str) -> list[str]:
     for s in ("recognise", "gate", "export"):
         if s not in stages:
             p.append(f"{file_id}: every recipe must include '{s}'")
+    dead = _dead_keys(data, known)
+    if dead:
+        p.append(f"{file_id}: keys no stage reads (dead config, E05): {', '.join(dead)}")
     return p
 
 
@@ -67,6 +106,8 @@ def build_plan(run_id: str, selection: dict, overrides: dict) -> dict:
             # Copy the engine tables into the plan so the plan alone fully describes the run.
             params["engine_table_primary"] = dict(defaults["engines"]["primary"])
             params["engine_table_cross_check"] = dict(defaults["engines"]["cross_check"])
+            if overrides.get("engine"):
+                params["engine_table_primary"] = {k: overrides["engine"] for k in params["engine_table_primary"]}
             if overrides.get("lang"):
                 params["language"] = overrides["lang"]
         if name == "polish":
@@ -74,7 +115,7 @@ def build_plan(run_id: str, selection: dict, overrides: dict) -> dict:
             params["llm_cleanup_enabled"] = defaults["llm_cleanup"]["enabled"]
         stages.append({
             "name": name,
-            "status": "pending" if name in IMPLEMENTED else "not_installed",
+            "status": "pending" if is_available(name, params) else "not_installed",
             "available_from_phase": phase_for(name, params),
             "params": params,
         })

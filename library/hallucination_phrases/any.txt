@@ -1,0 +1,10 @@
+# Phrases Whisper is known to produce on silence, music or noise (training artefacts). Matching segments are
+# FLAGGED [review], never deleted. One phrase per line, case-insensitive substring match.
+thank you for watching
+thanks for watching
+please subscribe
+subscribe to my channel
+like and subscribe
+subtitles by
+transcribed by
+amara.org

@@ -78,8 +78,18 @@ next = "Read the FAIL lines above this status line; report them to the maintaine
 
 [RUN_NOT_FOUND]
 code = 61
-meaning = "No run folder with that id exists in runs/."
+meaning = "No run folder with that id exists in runs/ (or evals/runs/)."
 next = "List runs/ and use one of the folder names exactly."
+
+[GATE_FAILED]
+code = 80
+meaning = "The run finished but the quality gate failed (no text, or too much flagged text): the transcript is not trustworthy."
+next = "Do not deliver the transcript. Report the reasons in <run>/report.md and <run>/out/review_list.md to the owner."
+
+[EVAL_REGRESSION]
+code = 81
+meaning = "`trx eval` finished, but at least one fixture scored worse than evals/baseline.json beyond the noise margin."
+next = "Maintainer: do not accept the change being tested (MAINTAINER.md gate). Revert it or keep tuning."
 
 [INTERNAL_ERROR]
 code = 70

@@ -1,13 +1,13 @@
 """trx explain <run>: turn a run's records into plain sentences anyone (or any model) can repeat accurately."""
 from __future__ import annotations
 
-from .common import RUNS_DIR, TrxError, read_json
+from .common import RUNS_DIR, TRX_HOME, TrxError, read_json
 
 
 def explain(run_id: str) -> list[str]:
     run_id = run_id.replace("\\", "/").rstrip("/").split("/")[-1]
-    run = RUNS_DIR / run_id
-    if not run.is_dir():
+    run = next((d / run_id for d in (RUNS_DIR, TRX_HOME / "evals" / "runs") if (d / run_id).is_dir()), None)
+    if run is None:
         raise TrxError("RUN_NOT_FOUND", run_id)
     lines = [f"Run {run_id}"]
     if (run / "report.json").is_file():

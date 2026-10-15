@@ -30,7 +30,7 @@ def _run(cmd):
         return False, str(e)
 
 
-def run_checks(offline_mode: bool = False) -> list[dict]:
+def run_checks(offline_mode: bool = False, deep: bool = False) -> list[dict]:
     checks: list[dict] = []
 
     def add(cid, ok, detail, required=True):
@@ -115,14 +115,97 @@ def run_checks(offline_mode: bool = False) -> list[dict]:
     # models from the manifest (informational until their phase lands)
     try:
         manifest = load_toml(TRX_HOME / "manifest.toml")
+        from .models import installed
         for comp in manifest.get("component", []):
             if comp.get("kind") != "model":
                 continue
-            present = (TRX_HOME / comp["path"]).exists() if comp.get("path") else False
-            add(f"model:{comp['id']}", present, f"phase {comp.get('phase')} — "
-                + ("present" if present else "not installed"), required=False)
+            ok = installed(comp["id"])
+            where = ""
+            if ok:
+                p = TRX_HOME / comp["path"]
+                where = " (on D: USB via junction)" if str(p.resolve()).upper().startswith("D:") else ""
+                src = json.loads((p / "SOURCE.json").read_text(encoding="utf-8"))
+                bad = [n for n, v in src.get("files", {}).items()
+                       if not (p / n).is_file() or (p / n).stat().st_size != v["size"]]
+                ok = not bad
+                where += f"; size mismatch: {bad}" if bad else ""
+                if deep and ok:
+                    from .common import sha256_file
+                    mism = [n for n, v in src["files"].items() if sha256_file(p / n) != v["sha256"]]
+                    ok = not mism
+                    where += f"; SHA256 MISMATCH: {mism}" if mism else "; sha256 verified"
+            status = comp.get("status", "")
+            why = {"excluded": " — excluded (licence/policy, see manifest.toml)",
+                   "not_installed": " — owner decision pending (QUESTIONS.md)"}.get(status, "")
+            add(f"model:{comp['id']}", ok, f"phase {comp.get('phase')} — "
+                + ("installed" + where if ok else ("not installed" + where + why)), required=False)
     except Exception as e:  # noqa: BLE001
         add("manifest", False, str(e))
+
+    # Phase 1+ runtime: venv packages exactly as locked, configured engines installed, binaries present
+    lock = TRX_HOME / "setup" / "requirements.lock"
+    if lock.is_file():
+        from importlib import metadata
+        want = {}
+        for f in (lock, TRX_HOME / "setup" / "requirements-nodeps.lock"):
+            if f.is_file():
+                for ln in f.read_text(encoding="utf-8").splitlines():
+                    if "==" in ln and not ln.startswith("#"):
+                        name, ver = ln.split()[0].split("==")
+                        want[name.lower()] = ver
+        wrong = []
+        for name, ver in want.items():
+            try:
+                have = metadata.version(name)
+                if have != ver:
+                    wrong.append(f"{name} {have}!={ver}")
+            except metadata.PackageNotFoundError:
+                wrong.append(f"{name} missing")
+        in_venv = ".venv" in sys.executable
+        add("venv:locked_packages", in_venv and not wrong,
+            (f"{len(want)} packages match setup/requirements.lock" if not wrong else "; ".join(wrong[:6]))
+            + ("" if in_venv else " (not running from toolchain/python/.venv)"))
+        try:
+            from .models import installed as _inst
+            d = load_config("defaults")
+            from .stages.recognise import engine_choices
+            prim = d["engines"]["primary"]
+            none_ok = [k for k in prim if not any(_inst(e) for e in engine_choices(prim, k))]
+            fallback = {k: next(e for e in engine_choices(prim, k) if _inst(e)) for k in prim
+                        if k not in none_ok and not _inst(engine_choices(prim, k)[0])}
+            add("engines:primary_installed", not none_ok,
+                (f"no installed engine for: {none_ok}" if none_ok else "an installed engine for every language")
+                + (f"; first choice missing (D: unplugged?), using {fallback}" if fallback else ""))
+            if d["engines"]["cross_check"].get("enabled"):
+                cc = {k: v for k, v in d["engines"]["cross_check"].items() if k != "enabled"}
+                cm = [k for k in cc if engine_choices(cc, k) and not any(_inst(e) for e in engine_choices(cc, k))]
+                add("engines:cross_check_installed", not cm, "cross-check engines installed" if not cm
+                    else f"no installed cross-check engine for: {cm} (verify is skipped there)", required=False)
+            lid = [e for e in d["languages"].get("lid_engines", []) if _inst(e)]
+            add("engines:lid", bool(lid), f"LID engine: {lid[0]}" if lid else "no LID engine installed")
+            if d["llm_cleanup"]["enabled"]:
+                from .llm.gemma3 import gguf_path, server_exe
+                ok = bool(server_exe()) and bool(gguf_path(d["llm_cleanup"]["model"]))
+                add("llm_cleanup:ready", ok, "llama-server + Gemma 3 GGUF present" if ok else
+                    "LLM cleanup enabled but llama-server or the Gemma 3 model is missing (USB drive D: connected?)")
+        except Exception as e:  # noqa: BLE001
+            add("engines", False, str(e))
+        add("bin:deep-filter", (TRX_HOME / "toolchain/bin/deep-filter/deep-filter.exe").is_file(), "DeepFilterNet3 binary")
+        add("bin:llama-server", (TRX_HOME / "toolchain/bin/llama.cpp/llama-server.exe").is_file(),
+            "llama.cpp (Vulkan) for Gemma 3 cleanup", required=False)
+        try:
+            from . import gpu
+            n = gpu.cuda_device_count()
+            add("gpu:cuda_usable", n > 0, f"{n} CUDA device(s) usable with the environment's cuBLAS/cuDNN"
+                if n else "no usable CUDA device: engines run on CPU (slow)", required=False)
+        except Exception as e:  # noqa: BLE001
+            add("gpu:cuda_usable", False, str(e), required=False)
+        try:
+            from .stages.diarize_sherpa import AVAILABLE as sh
+            add("diarization:sherpa_onnx", sh, "speaker diarization available" if sh else "not available",
+                required=False)
+        except Exception as e:  # noqa: BLE001
+            add("diarization:sherpa_onnx", False, str(e), required=False)
 
     min_gb = float(load_config("defaults")["runtime"]["min_free_gb"])
     free = shutil.disk_usage(TRX_HOME).free / 1e9

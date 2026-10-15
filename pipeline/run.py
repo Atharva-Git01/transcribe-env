@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .common import (RUNS_DIR, TrxError, env_version, load_config, local_stamp, safe_case_name, sha256_file,
                      write_json)
+from .context import Ctx
 from .guards import offline
 from .recipes import build_plan
 from .records import Custody, Decisions
@@ -55,22 +56,35 @@ def _git_commit(run_dir: Path, message: str) -> str:
         return f"not committed: {e}"
 
 
+def _env_commit() -> str:
+    try:
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=RUNS_DIR.parent, capture_output=True,
+                           text=True, timeout=20)
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", "config", "recipes", "pipeline", "prompts",
+                                "library"], cwd=RUNS_DIR.parent, capture_output=True, text=True, timeout=20).stdout
+        return (r.stdout.strip() or "unknown") + ("+uncommitted-changes" if dirty.strip() else "")
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
 def _write_report(run_dir: Path, run_id: str, verdict: str, reasons: list, exit_name: str, plan: dict | None,
-                  passport: dict | None, custody: Custody | None) -> None:
+                  passport: dict | None, custody: Custody | None, run_metrics: dict | None = None) -> None:
     stages = [{"name": s["name"], "status": s["status"], "available_from_phase": s["available_from_phase"]}
               for s in (plan or {}).get("stages", [])]
     outputs = {p.name: f"out/{p.name}" for p in sorted((run_dir / "out").glob("*")) if p.is_file()}
+    metrics = {} if passport is None else {
+        "duration_sec": passport["container"]["duration_sec"],
+        "snr_db_estimate": passport["noise"]["snr_db_estimate"],
+        "bandwidth": passport["bandwidth"]["class"],
+        "layout": passport["channels"]["layout_class"],
+    }
+    metrics.update(run_metrics or {})
+    metrics["env_commit"] = _env_commit()
     report = {
         "schema": "trx.report/1", "env_version": env_version(), "run_id": run_id, "verdict": verdict,
         "reasons": reasons, "exit_name": exit_name,
         "recipe": (plan or {}).get("recipe", {}).get("id", "none"),
-        "stages": stages, "outputs": outputs,
-        "metrics": {} if passport is None else {
-            "duration_sec": passport["container"]["duration_sec"],
-            "snr_db_estimate": passport["noise"]["snr_db_estimate"],
-            "bandwidth": passport["bandwidth"]["class"],
-            "layout": passport["channels"]["layout_class"],
-        },
+        "stages": stages, "outputs": outputs, "metrics": metrics,
     }
     _validated_write(run_dir / "report.json", report, "report")
     lines = [f"# Run {run_id}", "", f"**Verdict: {verdict}**  (exit: {exit_name}, env {env_version()})", ""]
@@ -93,7 +107,8 @@ def _write_report(run_dir: Path, run_id: str, verdict: str, reasons: list, exit_
 
 
 def transcribe(input_path: str, forced_recipe: str | None = None, style: str | None = None,
-               lang: str | None = None, case: str | None = None) -> tuple[str, dict]:
+               lang: str | None = None, case: str | None = None, engine: str | None = None,
+               runs_dir: Path = RUNS_DIR) -> tuple[str, dict]:
     pre = preflight()
     if _URL.match(str(input_path)):
         raise TrxError("INPUT_UNREADABLE", "URLs are not allowed; give a local file path")
@@ -104,7 +119,7 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
         raise TrxError("USAGE", "--style must be verbatim or readable")
 
     run_id = f"{safe_case_name(case or src.stem)}-{local_stamp()}"
-    run_dir = RUNS_DIR / run_id
+    run_dir = runs_dir / run_id
     for sub in ("input", "work", "out"):
         (run_dir / sub).mkdir(parents=True, exist_ok=False)
     (run_dir / ".gitignore").write_text(RUN_GITIGNORE, encoding="utf-8")
@@ -125,7 +140,8 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
             original=str(src.resolve()), sha256=original_hash)
 
     plan = passport = None
-    overrides = {k: v for k, v in {"recipe": forced_recipe, "style": style, "lang": lang}.items() if v}
+    run_metrics: dict = {}
+    overrides = {k: v for k, v in {"recipe": forced_recipe, "style": style, "lang": lang, "engine": engine}.items() if v}
     try:
         passport = probe(copy)
         _validated_write(run_dir / "passport.json", passport, "passport")
@@ -143,6 +159,7 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
         log.add("plan", "wrote plan.json", "plan.json is the only source of parameters for every stage.",
                 stages=[s["name"] for s in plan["stages"]])
 
+        ctx = Ctx(run_dir=run_dir, input_file=copy, passport=passport, plan=plan, log=log, custody=custody)
         exit_name, reasons = "OK", []
         for st in plan["stages"]:
             if st["status"] == "not_installed" and st["params"].get("required", True) is False:
@@ -156,17 +173,28 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
                 log.add(st["name"], "stopped", "This stage is not installed in the current environment phase.",
                         available_from_phase=st["available_from_phase"])
                 break
-            IMPLEMENTED[st["name"]](run_dir, st["params"], log, custody)
+            IMPLEMENTED[st["name"]](ctx, st["params"])
             st["status"] = "done"
         _validated_write(run_dir / "plan.json", plan, "plan")
-        verdict = "PASS" if exit_name == "OK" else "FAIL"
+        if exit_name == "OK":
+            verdict, reasons = ctx.verdict, list(ctx.verdict_reasons)
+            if verdict == "FAIL":
+                exit_name = "GATE_FAILED"
+        else:
+            verdict = "FAIL"
+        run_metrics.update(ctx.metrics, language=ctx.language, engines=[e["engine"] for e in ctx.engines_used])
     except offline.NetworkBlocked as e:
         exit_name, verdict, reasons = "NETWORK_BLOCKED", "FAIL", [str(e)]
     except TrxError as e:
         exit_name, verdict, reasons = e.name, "FAIL", [f"{e.name}: {e.detail}"]
         log.add("run", "failed", e.detail or e.name)
+    except Exception as e:  # noqa: BLE001 — never lose the run record on an unexpected error
+        import traceback
+        exit_name, verdict, reasons = "INTERNAL_ERROR", "FAIL", [f"{type(e).__name__}: {e}"]
+        (run_dir / "work" / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
+        log.add("run", "crashed", f"{type(e).__name__}: {e}", traceback="work/traceback.txt")
 
-    _write_report(run_dir, run_id, verdict, reasons, exit_name, plan, passport, custody)
+    _write_report(run_dir, run_id, verdict, reasons, exit_name, plan, passport, custody, run_metrics)
     errors = validate(log.items, "decisions")
     if errors:
         exit_name = "SCHEMA_INVALID"

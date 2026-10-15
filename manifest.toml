@@ -1,175 +1,191 @@
-# Every component of the environment. Read by `trx doctor` (status) and by setup/ (install plan).
-# Source URLs are used ONLY by setup/ after the owner's OK — never at runtime.
-# phase: when it is installed (see doc plan §7). commercial_ok: yes | conditional | no.
-# size_mb / licence marked "verify" are re-checked by `setup/fetch_models.py --check` before any download.
+# Every component of the environment. Read by `trx doctor` (status) and pipeline/models.py (engine -> folder).
+# Source URLs are used ONLY by setup/ after the owner's OK — never at runtime. Exact files + sha256: setup/sources.toml.
+# phase: when it is installed. commercial_ok: yes | conditional | no. status: installed | not_installed | excluded.
+# A model counts as installed only when <path>/<marker> AND <path>/SOURCE.json exist (SOURCE.json is written after
+# the sha256 check, so a half-downloaded file never counts).
 
 [environment]
 name = "transcribe-env"
 cost_rule = "zero cost: no paid API, plan or service; free licences that allow commercial use"
 runtime_network = "none (offline guard); internet only in setup/ after the owner's OK"
 machine = "i5-13420H 8C/12T, 16 GB RAM, RTX 3050 Laptop 4 GB, Windows 11"
+storage_note = "C: is nearly full; the two largest models live on D: (removable USB 2.0, FAT32) via directory junctions — D:\\transcribe-env-models. Unplugged D: = those engines are 'not installed'."
 
-# ---------------------------------------------------------------- have (phase 0)
+# ---------------------------------------------------------------- phase 0 (skeleton)
 [[component]]
 id = "python312"
 kind = "runtime"
 phase = 0
+status = "installed"
 licence = "PSF"
 commercial_ok = "yes"
-note = "system Python 3.12.10; phase 1 creates toolchain/python/.venv from requirements.lock"
-
-[[component]]
-id = "numpy"
-kind = "python"
-phase = 0
-licence = "BSD-3-Clause"
-commercial_ok = "yes"
+note = "system Python 3.12.10 builds toolchain/python/.venv; bin/trx uses the venv when present"
 
 [[component]]
 id = "ffmpeg"
 kind = "binary"
 phase = 0
+status = "installed"
 licence = "LGPL/GPL (gyan.dev full build 8.0.1)"
 commercial_ok = "yes"
-note = "decode, resample, loudness (ebur128), filters"
+note = "decode (pipeline/audio.decode_mono), resample, loudness (ebur128), highpass/loudnorm, afftdn denoise fallback"
 
 [[component]]
 id = "git"
 kind = "binary"
 phase = 0
+status = "installed"
 licence = "GPL-2.0"
 commercial_ok = "yes"
 note = "environment history + one repo per run"
 
-# ---------------------------------------------------------------- phase 1 (bootstrap)
+# ---------------------------------------------------------------- phase 1 (bootstrap: venv, GPU, first engine)
 [[component]]
-id = "faster_whisper"
+id = "venv"
 kind = "python"
 phase = 1
-licence = "MIT"
+status = "installed"
+licence = "various permissive (MIT/BSD/Apache) — see setup/requirements.lock"
 commercial_ok = "yes"
-source = "https://github.com/SYSTRAN/faster-whisper"
-note = "with ctranslate2 + CUDA 12 cuBLAS/cuDNN pip wheels for the RTX 3050"
-size_mb = "verify (~1200 incl. CUDA libs)"
+path = "toolchain/python/.venv"
+note = "26 packages pinned with sha256 in setup/requirements.lock (faster-whisper 1.2.1, ctranslate2 4.8.3, onnxruntime 1.31.0, sherpa_onnx 1.13.8, numpy 2.5.4, av 19.0.1 …) + setup/requirements-nodeps.lock (nvidia-cudnn-cu12 9.27.0.42). No torch."
+
+[[component]]
+id = "cuda12_runtime"
+kind = "binary"
+phase = 1
+status = "installed"
+licence = "NVIDIA CUDA redistributable EULA"
+commercial_ok = "yes"
+path = "toolchain/bin/cuda12"
+note = "cublas64_12 / cublasLt64_12 / cudart64_12 hard-linked from Ollama's lib/ollama/cuda_v12 (0 extra disk). cuDNN 9 comes from the nvidia-cudnn-cu12 wheel. pipeline/gpu.py adds both folders to the DLL search path."
 
 [[component]]
 id = "faster_whisper_medium"
 kind = "model"
 phase = 1
+status = "installed"
 licence = "MIT"
 commercial_ok = "yes"
 path = "toolchain/models/faster-whisper-medium"
+marker = "model.bin"
 source = "https://huggingface.co/Systran/faster-whisper-medium"
-size_mb = 1500
-note = "already in the HF cache; setup copies it in and records sha256 (no download)"
+size_mb = 1534
+note = "hard links to the Hugging Face cache snapshot (0 extra disk)"
 
 [[component]]
 id = "silero_vad"
-kind = "model"
+kind = "bundled"
 phase = 1
+status = "installed"
 licence = "MIT"
 commercial_ok = "yes"
-path = "toolchain/models/silero-vad"
-source = "https://github.com/snakers4/silero-vad"
-size_mb = 2
+note = "the Silero VAD ONNX model shipped inside the faster-whisper wheel (faster_whisper/assets); used by probe + vad stage"
 
 [[component]]
 id = "deep_filter"
 kind = "binary"
 phase = 1
+status = "installed"
 licence = "MIT OR Apache-2.0"
 commercial_ok = "yes"
 path = "toolchain/bin/deep-filter"
-source = "https://github.com/Rikorose/DeepFilterNet/releases"
-size_mb = "verify"
-note = "DeepFilterNet3 standalone binary: no torch needed"
-
-[[component]]
-id = "noisereduce"
-kind = "python"
-phase = 1
-licence = "MIT"
-commercial_ok = "yes"
-note = "denoise fallback"
+source = "https://github.com/Rikorose/DeepFilterNet/releases/tag/v0.5.6"
+note = "DeepFilterNet3 standalone deep-filter.exe (run with -D delay compensation); no torch"
 
 # ---------------------------------------------------------------- phase 2 (engines)
-[[component]]
-id = "faster_whisper_large_v3"
-kind = "model"
-phase = 2
-licence = "MIT"
-commercial_ok = "yes"
-path = "toolchain/models/faster-whisper-large-v3"
-source = "https://huggingface.co/Systran/faster-whisper-large-v3"
-size_mb = 3100
-
 [[component]]
 id = "faster_whisper_large_v3_turbo"
 kind = "model"
 phase = 2
+status = "installed"
 licence = "MIT"
 commercial_ok = "yes"
 path = "toolchain/models/faster-whisper-large-v3-turbo"
-source = "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
-size_mb = 1600
+marker = "model.bin"
+source = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
+size_mb = 1622
+note = "fast LID engine (lid_engines[0]); CTranslate2 conversion of openai/whisper-large-v3-turbo"
+
+[[component]]
+id = "faster_whisper_large_v3"
+kind = "model"
+phase = 2
+status = "installed"
+licence = "MIT"
+commercial_ok = "yes"
+path = "toolchain/models/faster-whisper-large-v3"
+marker = "model.bin"
+source = "https://huggingface.co/Systran/faster-whisper-large-v3"
+size_mb = 3093
+note = "on D: (USB) via junction; first load from USB 2.0 takes ~2-3 min"
 
 [[component]]
 id = "indic_conformer_600m"
 kind = "model"
 phase = 2
-licence = "MIT (per AIKosh / model listings — confirm on the model card before download)"
+status = "not_installed"
+licence = "MIT (model card) — repo is gated behind a free Hugging Face login"
 commercial_ok = "verify"
 path = "toolchain/models/indic-conformer-600m-multilingual"
+marker = "model.onnx"
 source = "https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual"
-size_mb = "verify (~2400)"
-note = "runtime code is vendored and pinned; no trust_remote_code downloads at runtime"
+note = "NOT installed: needs an HF login (gated) and its runtime pulls torch (~1 GB). Owner decision — see QUESTIONS.md Q1"
 
 [[component]]
 id = "indicwhisper"
 kind = "model"
 phase = 99
+status = "excluded"
 licence = "not stated"
 commercial_ok = "no"
 note = "EXCLUDED until a licence is published (Vistaar, reported Marathi avg WER 18.2%)"
 
-# ---------------------------------------------------------------- phase 3 (cleanup)
+# ---------------------------------------------------------------- phase 3 (local LLM cleanup)
 [[component]]
-id = "llama_cpp"
+id = "llama_cpp_vulkan"
 kind = "binary"
 phase = 3
+status = "installed"
 licence = "MIT"
 commercial_ok = "yes"
 path = "toolchain/bin/llama.cpp"
-source = "https://github.com/ggml-org/llama.cpp/releases"
-note = "single binary, no background service, no auto-update"
+source = "https://github.com/ggml-org/llama.cpp/releases/tag/b11669"
+note = "llama-server.exe, Vulkan build b11669: uses the GPU without CUDA libs; started per run on 127.0.0.1, no service, no updater"
 
 [[component]]
 id = "gemma3_4b_it_q4"
 kind = "model"
 phase = 3
+status = "installed"
 licence = "Gemma Terms of Use"
 commercial_ok = "conditional"
 path = "toolchain/models/gemma-3-4b-it-q4"
-source = "https://huggingface.co/google/gemma-3-4b-it-qat-q4_0-gguf"
-size_mb = "verify (~2500)"
-note = "owner's choice; Google's repo is gated (free HF account); commercial use allowed under the Gemma use policy"
+marker = "gemma-3-4b-it-Q4_K_M.gguf"
+source = "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF"
+size_mb = 2374
+note = "owner's choice (Gemma 3). On D: (USB) via junction. Ungated ggml-org GGUF, Q4_K_M. Commercial use allowed under the Gemma prohibited-use policy."
 
 # ---------------------------------------------------------------- phase 4 (hard audio)
 [[component]]
-id = "sherpa_onnx"
-kind = "binary"
+id = "sherpa_diarization"
+kind = "model"
 phase = 4
-licence = "Apache-2.0"
+status = "installed"
+licence = "MIT (pyannote segmentation 3.0) + Apache-2.0 (WeSpeaker ResNet34)"
 commercial_ok = "yes"
-path = "toolchain/bin/sherpa-onnx"
+path = "toolchain/models/sherpa-diarization"
+marker = "wespeaker_en_voxceleb_resnet34_LM.onnx"
 source = "https://github.com/k2-fsa/sherpa-onnx/releases"
-note = "speaker diarization without torch or an account"
+size_mb = 33
+note = "run by the sherpa_onnx Python package from the venv (no torch, no account)"
 
 [[component]]
 id = "demucs"
 kind = "python"
 phase = 4
+status = "not_installed"
 licence = "MIT"
 commercial_ok = "yes"
 source = "https://github.com/adefossez/demucs"
-size_mb = "verify (needs torch CPU)"
+note = "music/voice separation; needs torch (~1 GB CPU) + 80 MB model. Recipes keep `separate` required=false, so it is skipped. Owner decision — QUESTIONS.md"

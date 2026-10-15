@@ -14,6 +14,9 @@ warn_clipping_ratio = 0.001
 warn_low_snr_db = 10.0
 warn_quiet_lufs = -35.0
 warn_low_activity_ratio = 0.10
+vad_threshold = 0.40                # probe-time Silero VAD (activity + in-speech SNR + LID windows)
+gated_frame_below_peak_db = 60.0    # in-speech frames this far below the speech peak are codec gating, not noise
+diarize_max_minutes = 15            # probe estimates the speaker count (sherpa-onnx) only for files up to this length
 
 [verify]                            # Phase 2 (provisional)
 min_agreement = 0.80                # engine-vs-engine character agreement per window
@@ -22,9 +25,12 @@ max_no_speech_prob = 0.60
 max_compression_ratio = 2.4
 omission_min_speech_sec = 1.5       # VAD speech this long with no text = omission flag
 
-[gate]                              # Phase 2 (provisional)
-review_if_flagged_ratio_above = 0.05
-fail_if_flagged_ratio_above = 0.40
+[gate]                              # provisional until there are more fixtures (QUESTIONS.md Q10)
+review_if_flagged_ratio_above = 0.05   # ANY flag on more than 5 % of transcribed time -> REVIEW
+fail_if_flagged_ratio_above = 0.40     # HARD flags (not listed below) on more than 40 % -> FAIL
+# Soft flags mark lines a reviewer should check, but the text is a real attempt at the speech (wrong word forms,
+# speaker boundaries, channel bleed). They can make a run REVIEW, never FAIL. Matched by flag-name prefix.
+soft_flags = ["hindi_forms_in_marathi", "speaker_change_inside_segment", "crosstalk"]
 fail_if_no_text = true
 
 [llm_cleanup]                       # the 5 rejection gates (from FMS, kept as-is)

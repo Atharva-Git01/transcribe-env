@@ -30,8 +30,11 @@ HELP = """trx {v} — local, offline transcription environment
                                    process every new file dropped into inbox/
   trx probe <file> [--out FILE]    measure the audio only (writes a passport)
   trx explain <run-id>             plain-language account of a run
-  trx eval                         score the pipeline on evals/fixtures (maintainers)
-  trx doctor [--offline] [--brief] readiness + offline proof
+  trx eval [--engine ID] [--recipe ID] [--fixture ID] [--save-baseline]
+                                   score the pipeline on evals/fixtures (maintainers)
+  trx doctor [--offline] [--brief] [--deep]
+                                   readiness + offline proof (--deep: sha256 of every model)
+  trx test                         unit tests of the deterministic parts (maintainers)
   trx version | trx help
 
 Exit codes and the exact next step for each: config/exit_codes.toml. Operator checklist: OPERATOR.md."""
@@ -59,11 +62,18 @@ def build_parser() -> Parser:
     pr.add_argument("--out")
     e = sub.add_parser("explain", add_help=False)
     e.add_argument("run_id")
-    sub.add_parser("eval", add_help=False)
+    ev = sub.add_parser("eval", add_help=False)
+    ev.add_argument("--engine")
+    ev.add_argument("--recipe")
+    ev.add_argument("--fixture")
+    ev.add_argument("--lang")
+    ev.add_argument("--save-baseline", action="store_true")
     d = sub.add_parser("doctor", add_help=False)
     d.add_argument("--offline", action="store_true")
     d.add_argument("--brief", action="store_true")
+    d.add_argument("--deep", action="store_true")
     sub.add_parser("version", add_help=False)
+    sub.add_parser("test", add_help=False)
     sub.add_parser("help", add_help=False)
     return p
 
@@ -84,7 +94,7 @@ def main(argv: list[str]) -> int:
 
         if cmd == "doctor":
             from pipeline.doctor import run_checks, summary
-            checks = run_checks(offline_mode=args.offline)
+            checks = run_checks(offline_mode=args.offline, deep=args.deep)
             ok, req_fail, opt_fail = summary(checks)
             if not args.brief:
                 for c in checks:
@@ -136,8 +146,25 @@ def main(argv: list[str]) -> int:
             from pipeline.evaluate import list_fixtures, run_eval
             for f in list_fixtures():
                 out(f"  [{'ok' if f['ok'] else 'BAD'}] {f['id']}: {f['detail']}")
-            run_eval()
-            return status_line(cmd, "OK")
+            res = run_eval(args.engine, args.recipe, args.fixture, args.save_baseline, args.lang)
+            out(f"\n{'fixture':<24} {'recipe':<18} {'engine':<32} {'CER':>7} {'WER':>7} {'base':>7} {'verdict':<7} {'sec':>6}")
+            for r in res["rows"]:
+                base = "-" if r["baseline_cer"] is None else f"{r['baseline_cer']:.4f}"
+                out(f"{r['fixture']:<24} {r['recipe'] or '-':<18} {'+'.join(r['engines']) or '-':<32} {r['cer']:>7.4f} "
+                    f"{r['wer']:>7.4f} {base:>7} {r['verdict']:<7} {r['seconds']:>6}")
+            for reg in res["regressions"]:
+                out(f"REGRESSION {reg}")
+            out(f"saved {res['file']}" + (" and updated evals/baseline.json" if args.save_baseline else ""))
+            return status_line(cmd, "OK" if not res["regressions"] else "EVAL_REGRESSION",
+                               results=res["file"], regressions=len(res["regressions"]))
+
+        if cmd == "test":
+            import unittest
+            suite = unittest.defaultTestLoader.discover(str(Path(__file__).resolve().parent / "tests"))
+            res = unittest.TextTestRunner(verbosity=1, stream=sys.stdout).run(suite)
+            ok = res.wasSuccessful()
+            return status_line(cmd, "OK" if ok else "DOCTOR_FAILED", tests=res.testsRun,
+                               failures=len(res.failures) + len(res.errors))
 
         if cmd == "watch":
             from pipeline.watch import watch

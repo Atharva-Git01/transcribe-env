@@ -18,6 +18,7 @@ trx doctor --offline            is it ready and provably offline?
 trx transcribe "<file>"         one file -> runs/<case>-<time>/
 trx explain <run-id>            what was done and why, in plain sentences
 ```
+Maintenance: `trx eval`, `trx test`, `trx doctor --deep` (re-hashes every model), `trx probe <file>`, `trx watch`.
 `trx` = `bin\trx.cmd` (cmd / PowerShell) or `bin/trx` (Git Bash). `trx help` lists everything.
 
 ## What a run produces (`runs/<run-id>/`)
@@ -28,7 +29,7 @@ trx explain <run-id>            what was done and why, in plain sentences
 | `plan.json` | recipe chosen (and the rule that chose it) + every parameter every stage will use |
 | `decisions.json` | every action, in order, with the reason |
 | `custody.json` | sha256 of the original and of every file the run produced |
-| `out/` | transcript `.txt .srt .vtt .json` + `review_list.md` (from phase 1) |
+| `out/` | transcript `.txt .srt .vtt .json` + `review_list.md` (+ `readable` variant with `--style readable`) |
 | `report.md` / `report.json` | verdict PASS / REVIEW / FAIL with reasons |
 
 ## Layout
@@ -51,10 +52,16 @@ setup/       the only internet-touching part, run once per tier after the owner'
 | Phase | Adds | Status |
 |---|---|---|
 | 0 | skeleton, probe, recipe selection, plan, custody, doctor, explain | **built** |
-| 1 | venv; convert, denoise (DeepFilterNet3), VAD (Silero), language ID, faster-whisper medium, polish, gate, export | next (≈2 GB after OK) |
-| 2 | large-v3 / turbo, IndicConformer, dual-engine verify + merge, eval picks defaults | ≈5–6 GB |
-| 3 | Gemma 3 4B via llama.cpp cleanup (5 rejection gates) | ≈2.5 GB |
-| 4 | Demucs separation, sherpa-onnx diarization, long files | ≈1 GB |
-| 5 | weak-operator hardening | — |
+| 1 | own venv (hash-locked); convert, denoise (DeepFilterNet3 → ffmpeg afftdn), VAD (Silero), 2-step language ID, faster-whisper medium on the GPU (CUDA 12), polish flags, gate, export | **built** |
+| 2 | large-v3-turbo + large-v3 (on D: USB); dual-engine verify stage; `trx eval` scoring + baseline | **built** — IndicConformer not installed (QUESTIONS.md Q1) |
+| 3 | Gemma 3 4B (Q4_K_M) via llama.cpp `llama-server` (Vulkan), 5 rejection gates | **built, off by default** (E17) |
+| 4 | sherpa-onnx speaker diarization | **built** — Demucs separation and resumable long files not built (QUESTIONS.md) |
+| 5 | weak-operator hardening: one JSON status line + exit code per command, `trx test`, dead-config check | **built** |
 
+Status, numbers and open questions: `MORNING_REPORT.md`, `QUESTIONS.md`, `knowledge/CHANGELOG.md`.
 Full plan: `forensic media suit/doc/TRANSCRIPTION_ENVIRONMENT_PLAN.md`.
+
+## Hardware notes (this machine)
+- RTX 3050 Laptop 4 GB: one model on the GPU at a time (load → run → unload). `config/defaults.toml [runtime] device`.
+- large-v3 and Gemma 3 live on **D:** (removable USB stick) through junctions in `toolchain/models/`. With D:
+  unplugged those two show as "not installed" in `trx doctor`; medium and turbo (on C:) still work.

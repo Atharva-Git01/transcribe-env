@@ -1,6 +1,6 @@
 [recipe]
 id = "meeting_multi_speaker"
-version = 1
+version = 2
 description = "Three or more speakers on one channel: interviews, meetings, group conversations."
 when_to_use = "speakers.estimate >= 3 (measured from phase 4)."
 when_not_to_use = "One or two speakers on separate channels (true_stereo_call)."
@@ -14,7 +14,7 @@ sample_rate = 16000
 
 [denoise]
 engine = "deep_filter"
-fallback = ["noisereduce", "copy_through"]
+fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 12.0       # gentle: overlapping voices suffer from strong suppression
 
@@ -41,6 +41,10 @@ min_turn_s = 0.5
 language = "auto"
 initial_prompt_file = "prompts/initial_prompts/{lang}/general.txt"
 word_timestamps = true
+segmentation = "vad_concat"        # "vad_concat" (speech joined into <= 30 s windows; best CER, E14) | "clips"
+split_max_s = 10.0                # output segments longer than this are cut at word boundaries (text unchanged)
+group_max_s = 20.0               # clips mode only: VAD regions merged into clips of at most this length
+group_max_gap_s = 0.8             # clips mode only: regions closer than this are merged
 
 [recognise.faster_whisper]
 compute_type_gpu = "int8_float16"
@@ -56,19 +60,12 @@ condition_on_previous_text = false
 repetition_penalty = 1.0
 no_repeat_ngram_size = 0
 hallucination_silence_threshold = 2.0
-vad_filter = false
-
-[recognise.indic_conformer]
-decoder = "rnnt"
 
 [verify]
 required = false
-redecode_weak_windows = true
 
 [polish]
 doubled_words_guard = true
-loop_action = "flag"
-numerals = "defaults"
 
 [gate]
 thresholds = "gate"

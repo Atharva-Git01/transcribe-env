@@ -1,0 +1,167 @@
+# Exact install specs for setup/setup.py (generated 2026-10-16 from verified downloads).
+# kind: venv | file | zip | tar.bz2 | hardlink. Every file has its sha256; setup.py refuses mismatches.
+
+[[item]]
+id = "venv"
+phase = 1
+kind = "venv"
+licence = "various (see setup/requirements.lock)"
+extra_mb = 1400
+note = "toolchain/python/.venv from setup/requirements.lock + requirements-nodeps.lock (cuDNN)"
+
+[[item]]
+id = "cuda12_runtime"
+phase = 1
+kind = "hardlink"
+licence = "NVIDIA CUDA redistributable EULA"
+note = "hard links to Ollama's CUDA 12 cuBLAS/cudart (0 extra disk). Without Ollama: pip install nvidia-cublas-cu12 and copy its bin/*.dll here."
+source_json_dir = "toolchain/bin/cuda12"
+
+
+
+files = [
+  { from = "%LOCALAPPDATA%\\Programs\\Ollama\\lib\\ollama\\cuda_v12\\\\cublas64_12.dll", dest = "toolchain/bin/cuda12/cublas64_12.dll", sha256 = "8cfc746c3741788840d8be2c006a4e4d58be219b82bc579f9eaee05c5f9c495c", size = 113720712 },
+  { from = "%LOCALAPPDATA%\\Programs\\Ollama\\lib\\ollama\\cuda_v12\\\\cublasLt64_12.dll", dest = "toolchain/bin/cuda12/cublasLt64_12.dll", sha256 = "0bd08d30ce4d19436041dd953db4e31cf5269eb57a34e3bb52d3fa1de831c15e", size = 692449672 },
+  { from = "%LOCALAPPDATA%\\Programs\\Ollama\\lib\\ollama\\cuda_v12\\\\cudart64_12.dll", dest = "toolchain/bin/cuda12/cudart64_12.dll", sha256 = "28be15204c72e6e7f0df236750b9c8a6c8fe2e0307e2423a9d029a2bc9d8c848", size = 582024 },
+]
+
+[[item]]
+id = "deep_filter"
+phase = 1
+kind = "file"
+licence = "MIT OR Apache-2.0"
+page = "https://github.com/Rikorose/DeepFilterNet"
+
+files = [
+  { url = "https://github.com/Rikorose/DeepFilterNet/releases/download/v0.5.6/deep-filter-0.5.6-x86_64-pc-windows-msvc.exe", dest = "toolchain/bin/deep-filter/deep-filter.exe", sha256 = "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915", size = 26912256 },
+]
+
+[[item]]
+id = "faster_whisper_medium"
+phase = 1
+kind = "hardlink"
+licence = "MIT"
+note = "hard links to the Hugging Face cache (0 extra disk). If the cache is gone, download the same files from https://huggingface.co/Systran/faster-whisper-medium"
+page = "https://huggingface.co/Systran/faster-whisper-medium"
+
+
+
+
+files = [
+  { from = "%USERPROFILE%\\.cache\\huggingface\\hub\\models--Systran--faster-whisper-medium\\snapshots\\*\\\\config.json", dest = "toolchain/models/faster-whisper-medium/config.json", sha256 = "3622a2ddc41ec0e0fd4e68c13c6830f03b90c38d89aaad184de02c8c642cf807", size = 2257 },
+  { from = "%USERPROFILE%\\.cache\\huggingface\\hub\\models--Systran--faster-whisper-medium\\snapshots\\*\\\\model.bin", dest = "toolchain/models/faster-whisper-medium/model.bin", sha256 = "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae", size = 1527906378 },
+  { from = "%USERPROFILE%\\.cache\\huggingface\\hub\\models--Systran--faster-whisper-medium\\snapshots\\*\\\\tokenizer.json", dest = "toolchain/models/faster-whisper-medium/tokenizer.json", sha256 = "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab", size = 2203239 },
+  { from = "%USERPROFILE%\\.cache\\huggingface\\hub\\models--Systran--faster-whisper-medium\\snapshots\\*\\\\vocabulary.txt", dest = "toolchain/models/faster-whisper-medium/vocabulary.txt", sha256 = "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913", size = 459861 },
+]
+
+[[item]]
+id = "faster_whisper_large_v3_turbo"
+phase = 2
+kind = "file"
+licence = "MIT"
+page = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
+
+
+
+
+
+
+files = [
+  { url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/main/README.md", dest = "toolchain/models/faster-whisper-large-v3-turbo/README.md", sha256 = "b3068692728faed23580cce5cd569fc47ff76c690c032b2641ffd5554ea64d8f", size = 1445 },
+  { url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/main/config.json", dest = "toolchain/models/faster-whisper-large-v3-turbo/config.json", sha256 = "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e", size = 2263 },
+  { url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/main/model.bin", dest = "toolchain/models/faster-whisper-large-v3-turbo/model.bin", sha256 = "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da", size = 1617884929 },
+  { url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/main/preprocessor_config.json", dest = "toolchain/models/faster-whisper-large-v3-turbo/preprocessor_config.json", sha256 = "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711", size = 340 },
+  { url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/main/tokenizer.json", dest = "toolchain/models/faster-whisper-large-v3-turbo/tokenizer.json", sha256 = "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd", size = 2710337 },
+  { url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/main/vocabulary.json", dest = "toolchain/models/faster-whisper-large-v3-turbo/vocabulary.json", sha256 = "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1", size = 1068114 },
+]
+
+[[item]]
+id = "faster_whisper_large_v3"
+phase = 2
+kind = "file"
+licence = "MIT"
+page = "https://huggingface.co/Systran/faster-whisper-large-v3"
+
+
+
+
+
+
+files = [
+  { url = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/README.md", dest = "toolchain/models/faster-whisper-large-v3/README.md", sha256 = "39e96252229f5a3d0141dc81afb65a36fd205461ac21e5b70f2cd1248ef0082c", size = 2052 },
+  { url = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/config.json", dest = "toolchain/models/faster-whisper-large-v3/config.json", sha256 = "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9", size = 2394 },
+  { url = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin", dest = "toolchain/models/faster-whisper-large-v3/model.bin", sha256 = "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1", size = 3087284237 },
+  { url = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/preprocessor_config.json", dest = "toolchain/models/faster-whisper-large-v3/preprocessor_config.json", sha256 = "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711", size = 340 },
+  { url = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/tokenizer.json", dest = "toolchain/models/faster-whisper-large-v3/tokenizer.json", sha256 = "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca", size = 2480617 },
+  { url = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/vocabulary.json", dest = "toolchain/models/faster-whisper-large-v3/vocabulary.json", sha256 = "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1", size = 1068114 },
+]
+
+[[item]]
+id = "llama_cpp_vulkan"
+phase = 3
+kind = "zip"
+licence = "MIT"
+url = "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-win-vulkan-x64.zip"
+archive_sha256 = "2c07574e7bde71321cb785282b20cc821e951132149eeceeea32ddebdbf0598e"
+extract_to = "toolchain/bin/llama.cpp"
+extra_mb = 32
+note = "Vulkan build: uses the GPU without CUDA libraries; no service, no updater"
+
+files = [
+  { dest = "toolchain/bin/llama.cpp/llama-server.exe", size = 9216 },
+]
+
+[[item]]
+id = "gemma3_4b_it_q4"
+phase = 3
+kind = "file"
+licence = "Gemma Terms of Use"
+page = "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF"
+
+files = [
+  { url = "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf", dest = "toolchain/models/gemma-3-4b-it-q4/gemma-3-4b-it-Q4_K_M.gguf", sha256 = "882e8d2db44dc554fb0ea5077cb7e4bc49e7342a1f0da57901c0802ea21a0863", size = 2489757856 },
+]
+
+[[item]]
+id = "sherpa_segmentation"
+phase = 4
+kind = "tar.bz2"
+licence = "MIT"
+url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2"
+extract_to = "toolchain/models/sherpa-diarization"
+source_json_dir = "toolchain/models/sherpa-diarization"
+
+
+
+
+
+
+
+
+
+
+
+files = [
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/export-onnx.py", sha256 = "21df426fc6ca2ad54b5c9e114729990e0a669d602ea4e052f38287f99d32c0b0", size = 3953 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/LICENSE", sha256 = "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba", size = 1061 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/model.int8.onnx", sha256 = "d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d", size = 1540506 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/model.onnx", sha256 = "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079", size = 5992913 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/README.md", sha256 = "0380ed76a50efcc421dc62f251ed06e8349688466beac3177bee6e00dc336bfc", size = 115 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/run.sh", sha256 = "5844c56ec90b29d0f01056f81e3f66f84ed4ef598bfc8705f86cd290d73138b3", size = 1985 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/show-onnx.py", sha256 = "ace74dd3749e345cfac03a2d869830a99e7425ebc100545d7e8b2b95568ee575", size = 857 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/speaker-diarization-onnx.py", sha256 = "51e301c2d02c87351a22582e51e883d4f18e4755d193587e69e1fd7f357132e7", size = 15204 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/speaker-diarization-torch.py", sha256 = "72f9fa5dd9f4966869acf79ef3b1328398434c70373f462d373895757aa0fae7", size = 2306 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/vad-onnx.py", sha256 = "4fbd5d74faf7bb34133f3268d1f184f9a43bfa3e3220acf1dbec7e9bef41e848", size = 6883 },
+  { dest = "toolchain/models/sherpa-diarization/sherpa-onnx-pyannote-segmentation-3-0/vad-torch.py", sha256 = "ecd6d40be0229624b7a312a1e2a3cffddeaf432706395df26c76fe588bf8dc66", size = 1029 },
+]
+
+[[item]]
+id = "sherpa_embedding"
+phase = 4
+kind = "file"
+licence = "Apache-2.0"
+source_json_dir = "toolchain/models/sherpa-diarization"
+
+files = [
+  { url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx", dest = "toolchain/models/sherpa-diarization/wespeaker_en_voxceleb_resnet34_LM.onnx", sha256 = "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012", size = 26530550 },
+]
