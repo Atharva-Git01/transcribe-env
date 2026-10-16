@@ -9,7 +9,7 @@ name = "transcribe-env"
 cost_rule = "zero cost: no paid API, plan or service; free licences that allow commercial use"
 runtime_network = "none (offline guard); internet only in setup/ after the owner's OK"
 machine = "i5-13420H 8C/12T, 16 GB RAM, RTX 3050 Laptop 4 GB, Windows 11"
-storage_note = "C: is nearly full; the two largest models live on D: (removable USB 2.0, FAT32) via directory junctions — D:\\transcribe-env-models. Unplugged D: = those engines are 'not installed'."
+storage_note = 'All models are on C: (moved back from the D: USB stick on 2026-10-16). D:\transcribe-env-models keeps a backup copy; nothing at runtime uses D:.'
 
 # ---------------------------------------------------------------- phase 0 (skeleton)
 [[component]]
@@ -118,7 +118,7 @@ path = "toolchain/models/faster-whisper-large-v3"
 marker = "model.bin"
 source = "https://huggingface.co/Systran/faster-whisper-large-v3"
 size_mb = 3093
-note = "on D: (USB) via junction; first load from USB 2.0 takes ~2-3 min"
+note = 'most accurate engine here (default for mr/hi); backup copy on D:\transcribe-env-models'
 
 [[component]]
 id = "indic_conformer_600m"
@@ -164,7 +164,7 @@ path = "toolchain/models/gemma-3-4b-it-q4"
 marker = "gemma-3-4b-it-Q4_K_M.gguf"
 source = "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF"
 size_mb = 2374
-note = "owner's choice (Gemma 3). On D: (USB) via junction. Ungated ggml-org GGUF, Q4_K_M. Commercial use allowed under the Gemma prohibited-use policy."
+note = "owner's choice (Gemma 3). Ungated ggml-org GGUF, Q4_K_M. Commercial use allowed under the Gemma prohibited-use policy."
 
 # ---------------------------------------------------------------- phase 4 (hard audio)
 [[component]]

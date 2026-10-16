@@ -113,7 +113,8 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 ## E15 — Disk ran out during installs
 - **Seen (2026-10-16, setup):** C: dropped to 1.5 GB free while Gemma was downloading; later the Windows pagefile
   grew to 10.6 GB while large-v3 loaded and C: fell from ~9.8 GB to 3.6 GB free.
-- **Fix:** large models on D: via junctions; downloads stop when C: is low; `[runtime] min_free_gb` in doctor.
+- **Fix:** large models went to D: via junctions for the night; on 2026-10-16 the owner cleared the 15 GB pip cache and
+  they moved back to C: (sha256 re-verified). Downloads stop when C: is low; `[runtime] min_free_gb` in doctor.
 - **Check:** `trx doctor` → `disk`.
 - **Rule:** check free space before any install; the pagefile shrinks back only after a reboot.
 

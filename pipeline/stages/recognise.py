@@ -20,7 +20,7 @@ def _prompt(template: str, lang: str) -> str | None:
 
 
 def engine_choices(table: dict, lang: str) -> list[str]:
-    """An engine-table entry is one engine id or an ordered list (first installed wins, e.g. when D: is unplugged)."""
+    """An engine-table entry is one engine id or an ordered list (first installed wins, e.g. when a model folder is missing)."""
     v = table.get(lang) or table.get("unknown") or []
     return [v] if isinstance(v, str) else [e for e in v if e]
 
@@ -33,7 +33,7 @@ def _engine_for(table: dict, lang: str) -> tuple[str, list[str]]:
         if installed(eng):
             return eng, choices[:i]
     raise TrxError("MODEL_MISSING", f"none of the engines configured for '{lang}' is installed: {choices} "
-                                    f"(large-v3 and Gemma live on the D: USB drive — is it connected?)")
+                                    f"(check toolchain/models/ and run `trx doctor`)")
 
 
 def _decode_track(eng, audio, tr, ctx, params, vad, fw, lang, prompt_tpl):

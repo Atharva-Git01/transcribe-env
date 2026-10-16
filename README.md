@@ -53,7 +53,7 @@ setup/       the only internet-touching part, run once per tier after the owner'
 |---|---|---|
 | 0 | skeleton, probe, recipe selection, plan, custody, doctor, explain | **built** |
 | 1 | own venv (hash-locked); convert, denoise (DeepFilterNet3 → ffmpeg afftdn), VAD (Silero), 2-step language ID, faster-whisper medium on the GPU (CUDA 12), polish flags, gate, export | **built** |
-| 2 | large-v3-turbo + large-v3 (on D: USB); dual-engine verify stage; `trx eval` scoring + baseline | **built** — IndicConformer not installed (QUESTIONS.md Q1) |
+| 2 | large-v3-turbo + large-v3; dual-engine verify stage; `trx eval` scoring + baseline | **built** — IndicConformer not installed (QUESTIONS.md Q1) |
 | 3 | Gemma 3 4B (Q4_K_M) via llama.cpp `llama-server` (Vulkan), 5 rejection gates | **built, off by default** (E17) |
 | 4 | sherpa-onnx speaker diarization | **built** — Demucs separation and resumable long files not built (QUESTIONS.md) |
 | 5 | weak-operator hardening: one JSON status line + exit code per command, `trx test`, dead-config check | **built** |
@@ -63,5 +63,4 @@ Full plan: `forensic media suit/doc/TRANSCRIPTION_ENVIRONMENT_PLAN.md`.
 
 ## Hardware notes (this machine)
 - RTX 3050 Laptop 4 GB: one model on the GPU at a time (load → run → unload). `config/defaults.toml [runtime] device`.
-- large-v3 and Gemma 3 live on **D:** (removable USB stick) through junctions in `toolchain/models/`. With D:
-  unplugged those two show as "not installed" in `trx doctor`; medium and turbo (on C:) still work.
+- All models are on C: in `toolchain/models/` (a backup copy of large-v3 and Gemma 3 is on the D: USB stick).

@@ -48,8 +48,8 @@ Quote paths that contain spaces.
 
 ## What to expect
 
-- A 1-minute phone call takes about 1.5–5 minutes (the first load of a model from the D: USB drive is slow).
+- A 1-minute phone call takes about 2–4 minutes.
 - `REVIEW` is normal for hard phone audio: it means some lines are uncertain, not that the run broke.
-- If the last line says `MODEL_MISSING` and mentions large-v3 or Gemma: the D: USB drive is not connected. Report it;
+- If the last line says `MODEL_MISSING`: a model folder in `toolchain/models/` is missing. Report it;
   do not try to fix it.
 - If the last line says `DISK_LOW`: report it; do not delete anything.

@@ -175,7 +175,7 @@ def run_checks(offline_mode: bool = False, deep: bool = False) -> list[dict]:
                         if k not in none_ok and not _inst(engine_choices(prim, k)[0])}
             add("engines:primary_installed", not none_ok,
                 (f"no installed engine for: {none_ok}" if none_ok else "an installed engine for every language")
-                + (f"; first choice missing (D: unplugged?), using {fallback}" if fallback else ""))
+                + (f"; first choice missing, using {fallback}" if fallback else ""))
             if d["engines"]["cross_check"].get("enabled"):
                 cc = {k: v for k, v in d["engines"]["cross_check"].items() if k != "enabled"}
                 cm = [k for k in cc if engine_choices(cc, k) and not any(_inst(e) for e in engine_choices(cc, k))]
@@ -187,7 +187,7 @@ def run_checks(offline_mode: bool = False, deep: bool = False) -> list[dict]:
                 from .llm.gemma3 import gguf_path, server_exe
                 ok = bool(server_exe()) and bool(gguf_path(d["llm_cleanup"]["model"]))
                 add("llm_cleanup:ready", ok, "llama-server + Gemma 3 GGUF present" if ok else
-                    "LLM cleanup enabled but llama-server or the Gemma 3 model is missing (USB drive D: connected?)")
+                    "LLM cleanup enabled but llama-server or the Gemma 3 model is missing (see toolchain/models/)")
         except Exception as e:  # noqa: BLE001
             add("engines", False, str(e))
         add("bin:deep-filter", (TRX_HOME / "toolchain/bin/deep-filter/deep-filter.exe").is_file(), "DeepFilterNet3 binary")

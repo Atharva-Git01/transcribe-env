@@ -32,8 +32,8 @@ text_lid_min_markers = 3               # fewer surviving distinct marker words t
 text_lid_min_confidence = 0.65         # decision confidence below this -> priority[0] + language_ambiguous warning
 code_switch_min_en_windows = 3         # Indic decision AND English top in >= this many LID windows -> code-switch high
 
-# Engine per language: an ordered list, the FIRST INSTALLED one is used (large-v3 lives on the D: USB drive; when it
-# is unplugged the run falls back to turbo and decisions.json says so). Chosen by `trx eval` (CHANGELOG 0.5.0):
+# Engine per language: an ordered list, the FIRST INSTALLED one is used (if a model folder is missing or damaged the
+# run falls back to the next one and decisions.json says so). Chosen by `trx eval` (CHANGELOG 0.5.0):
 # Pappa call (Marathi phone audio), seeded, vad_concat: large-v3 CER 0.531 · turbo 0.793; medium looped in Bengali
 # letters (unseeded, CER 1.52). FMS on the same call, same metric: 0.745.
 # en has no fixture yet: turbo first (fast; same family as large-v3).
