@@ -32,6 +32,7 @@ class Ctx:
     segment_languages: list = field(default_factory=list)  # per VAD group when lid.per_segment
     segments: list[dict] = field(default_factory=list)     # recognised segments (all tracks), time-ordered
     turns: list[dict] = field(default_factory=list)        # diarization turns {start, end, speaker} (phase 4)
+    quiet_regions: list[dict] = field(default_factory=list)  # speech found only by the VAD gap audit
     engines_used: list[dict] = field(default_factory=list)
     review: list[dict] = field(default_factory=list)       # items for out/review_list.md
     verdict: str = "PASS"

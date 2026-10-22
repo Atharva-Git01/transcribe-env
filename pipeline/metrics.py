@@ -21,6 +21,102 @@ def normalise(text: str) -> str:
     return _SPACE.sub(" ", t).strip()
 
 
+# Spelling-variant folding for the "normalised" score (OIWER-like; documented, applied to BOTH sides):
+#   nukta dropped (ज़ -> ज), chandrabindu -> anusvara (ँ -> ं), candra vowels -> plain (ॅ -> े, ॉ -> ो, ऑ -> ओ, ॲ -> अ),
+#   digits -> number words (library/numbers/<lang>.toml). "loose" also merges short/long i and u (ि/ी, ु/ू).
+_FOLD = str.maketrans({"\u093c": None, "\u0901": "\u0902", "\u0945": "\u0947", "\u0949": "\u094b",
+                       "\u0911": "\u0913", "\u0972": "\u0905"})
+_LOOSE = str.maketrans({"\u0940": "\u093f", "\u0942": "\u0941", "\u0908": "\u0907", "\u090a": "\u0909"})
+
+
+def normalise_level(text: str, lang: str = "", level: str = "strict") -> str:
+    """level: "strict" (= normalise), "norm" (spelling variants folded, digits as words), "loose" (+ i/u length)."""
+    t = normalise(text)
+    if level == "strict":
+        return t
+    t = unicodedata.normalize("NFD", t).translate(_FOLD)
+    t = unicodedata.normalize("NFC", t)
+    if lang:
+        try:
+            from .numbers import digits_to_words
+            t = digits_to_words(t, lang)[0].replace(" टक्के", " टक्के")
+        except Exception:  # noqa: BLE001 — scoring must never crash on a number table problem
+            pass
+    if level == "loose":
+        t = t.translate(_LOOSE)
+    return _SPACE.sub(" ", t).strip()
+
+
+def cer_level(reference: str, hypothesis: str, lang: str = "", level: str = "strict") -> float:
+    ref = normalise_level(reference, lang, level).replace(" ", "")
+    hyp = normalise_level(hypothesis, lang, level).replace(" ", "")
+    if not ref:
+        return 0.0 if not hyp else 1.0
+    return _edit_distance(ref, hyp) / len(ref)
+
+
+def turn_alignment(ref_segments: list[dict], hyp_segments: list[dict]) -> list[dict]:
+    """Align hypothesis segments to reference turns (character alignment, like CER). For each reference turn:
+    the hypothesis text that landed on it, its speakers, and the turn's own CER. Missing turns get text ""."""
+    r_chars, r_turn, h_chars, h_seg = [], [], [], []
+    for i, seg in enumerate(ref_segments):
+        t = normalise(seg.get("text", "")).replace(" ", "")
+        r_chars += list(t)
+        r_turn += [i] * len(t)
+    for j, seg in enumerate(hyp_segments):
+        t = normalise(seg.get("text", "")).replace(" ", "")
+        h_chars += list(t)
+        h_seg += [j] * len(t)
+    votes: dict = {}
+    for ri, hj in _align_pairs(r_chars, h_chars):
+        votes.setdefault(h_seg[hj], []).append(r_turn[ri])
+    owner, last = {}, 0
+    for j in range(len(hyp_segments)):
+        v = votes.get(j)
+        owner[j] = max(set(v), key=v.count) if v else last
+        last = owner[j]
+    rows = []
+    for i, seg in enumerate(ref_segments):
+        hyp = [hyp_segments[j] for j in range(len(hyp_segments)) if owner[j] == i]
+        text = " ".join(h.get("text", "") for h in hyp).strip()
+        rows.append({"turn": i + 1, "ref_speaker": seg.get("speaker"), "ref": seg.get("text", ""), "hyp": text,
+                     "hyp_speakers": sorted({h.get("speaker") for h in hyp if h.get("speaker")}),
+                     "cer": round(cer(seg.get("text", ""), text), 3) if text else 1.0})
+    return rows
+
+
+def _align_pairs(a: list, b: list) -> list[tuple[int, int]]:
+    """Index pairs (i, j) of a Levenshtein alignment of two sequences (matches and substitutions)."""
+    n, m = len(a), len(b)
+    prev = list(range(m + 1))
+    back = []
+    for i in range(1, n + 1):
+        cur = [i] + [0] * m
+        row = bytearray(m + 1)
+        ai = a[i - 1]
+        for j in range(1, m + 1):
+            d, l, u = prev[j - 1] + (ai != b[j - 1]), cur[j - 1] + 1, prev[j] + 1
+            if d <= l and d <= u:
+                cur[j], row[j] = d, 0
+            elif u <= l:
+                cur[j], row[j] = u, 1
+            else:
+                cur[j], row[j] = l, 2
+        back.append(row)
+        prev = cur
+    pairs, i, j = [], n, m
+    while i > 0 and j > 0:
+        op = back[i - 1][j]
+        if op == 0:
+            pairs.append((i - 1, j - 1))
+            i, j = i - 1, j - 1
+        elif op == 1:
+            i -= 1
+        else:
+            j -= 1
+    return pairs[::-1]
+
+
 def _edit_distance(a, b) -> int:
     if len(a) < len(b):
         a, b = b, a

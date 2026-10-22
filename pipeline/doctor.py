@@ -147,7 +147,7 @@ def run_checks(offline_mode: bool = False, deep: bool = False) -> list[dict]:
     if lock.is_file():
         from importlib import metadata
         want = {}
-        for f in (lock, TRX_HOME / "setup" / "requirements-nodeps.lock"):
+        for f in (lock, TRX_HOME / "setup" / "requirements-nodeps.lock", TRX_HOME / "setup" / "requirements-ml.lock"):
             if f.is_file():
                 for ln in f.read_text(encoding="utf-8").splitlines():
                     if "==" in ln and not ln.startswith("#"):

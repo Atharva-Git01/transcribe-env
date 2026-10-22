@@ -172,3 +172,31 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Check:** `tests/test_core.py::TestSegmentLanguage`; the FLEURS Marathi fixture in `trx eval`.
 - **Rule:** never let a renormalised probability over a reduced candidate set decide a language; a wrong language
   forced on Whisper is worse than no decision.
+
+## E21 — Splicing the original audio back into the denoised track broke recognition
+- **Seen (2026-10-23, Pappa call):** DeepFilterNet turned soft speech down by its full 18 dB limit. This included
+  short replies and a quiet sentence at 51.7–52.7 s (−30.5 → −48.5 dBFS). A "speech guard" put the original audio back
+  wherever the original was speech (Silero ≥ 0.2) but the denoised track was 12 dB+ quieter (11 stretches, 6.2 s).
+  Whisper then lost whole turns: CER 0.513 → **0.921**, missing turns 4 → 12.
+- **Decision:** `speech_guard = false` in every recipe. The code stays for future engines, but needs an eval before
+  re-enabling.
+- **Also measured:** gentler denoising (10 dB limit) gave CER 0.515 and no denoising 0.518. On this call the lost
+  short replies are **not** caused by denoising. Whisper does not write them down whatever the audio (see E23).
+- **Rule:** mixing differently processed audio inside one track creates bursts that the recogniser treats as
+  something else. Process whole tracks.
+
+## E22 — The quiet-speech check could not see speech the denoiser had removed
+- **Seen (2026-10-23):** the VAD gap audit runs on the denoised track, so the 51.7–52.7 s soft speech was already
+  gone (only 31 % of frames above the floor; Silero found nothing). Its noise floor was also −120 dB on the denoised
+  track (digital silence), so the energy test passed everything.
+- **Fix:** the floor now ignores digital silence (frames below −90 dB). Silero gets 0.5 s of context on each side
+  of a gap. The check still finds nothing on this call, so it stays as a safety net.
+- **Rule:** any "is there speech here?" check must run on audio that still contains the speech.
+
+## E23 — Whisper invents text when a short turn is decoded on its own
+- **Seen (2026-10-23):** decoding each empty speaker turn alone (missed-turn recovery) returned repetitions that were
+  never said (one word twice in a row, a filler word four times). CER 0.513 → 0.566, although missing turns fell from 4 to 1.
+- **Fix:** recovered text must pass `_plausible()` (no loop or repeated words, no character runs, avg log-prob ≥ −0.8,
+  no-speech ≤ 0.5) and is flagged `recovered_turn` (soft). With Whisper nothing passed on this call, so CER is back
+  to 0.513. Recovery stays on for engines trained on short utterances (Indic models).
+- **Rule:** text produced from a few hundred milliseconds of audio is guilty until proven plausible.

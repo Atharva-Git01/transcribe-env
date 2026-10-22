@@ -118,6 +118,26 @@ def _advanced(path: Path, duration: float, thr: dict) -> dict | None:
     elif speech_sec < 1.0:
         res["warnings"].append("almost_no_speech: Silero VAD found under 1 s of speech")
 
+    # music / TV behind the voice: Demucs on the 10 s window with the most speech — feeds the music rule
+    try:
+        from .separate import AVAILABLE as SEP_OK
+    except ImportError:
+        SEP_OK = False
+    if SEP_OK and speech_sec >= 2.0:
+        from ..audio import decode_window, rms_dbfs
+        from .separate import _separate
+        win = float(thr.get("music_window_s", 10.0))
+        starts = [s for s, _ in speech] or [0.0]
+        best = max(starts, key=lambda a: sum(max(0.0, min(e, a + win) - max(s, a)) for s, e in speech))
+        x = decode_window(path, best, win, 44100)
+        if x.size > 44100:
+            voc, bg = _separate(x, 44100, {"model": "htdemucs"})
+            rel = rms_dbfs(bg) - rms_dbfs(voc)
+            limit = float(thr.get("music_background_db", -12.0))
+            res["music"] = {"present": rel > limit, "background_vs_speech_db": round(rel, 1),
+                            "status": f"measured: Demucs htdemucs on {best:.0f}-{best + win:.0f} s; background "
+                                      f"{rel:.1f} dB vs speech (present above {limit} dB)"}
+
     # speaker count (phase 4, sherpa-onnx) for files up to [probe].diarize_max_minutes — feeds rule R3
     try:
         from .diarize_sherpa import AVAILABLE, diarize
@@ -259,6 +279,8 @@ def probe(path: Path) -> dict:
                        f"{thr['activity_min_dbfs']} dBFS))")
     language = {"top3": None, "code_switch_risk": None, "status": "not_measured: no LID engine installed"}
     speakers = {"estimate": None, "status": "not_measured: diarization not installed or file too long"}
+    music = {"present": None, "background_vs_speech_db": None,
+             "status": "not_measured: Demucs not installed or too little speech"}
     try:
         adv = _advanced(path, duration, thr)
     except ImportError:
@@ -273,6 +295,8 @@ def probe(path: Path) -> dict:
             language = adv["language"]
         if adv.get("speakers"):
             speakers = adv["speakers"]
+        if adv.get("music"):
+            music = adv["music"]
         warnings += adv.get("warnings", [])
     if layout == "duplicated_mono":
         warnings.append("duplicated_mono: both channels carry the same signal; treated as mono (never as 2 speakers)")
@@ -331,6 +355,6 @@ def probe(path: Path) -> dict:
         "activity": {"active_ratio": round(active_ratio, 4), "method": activity_method},
         "language": language,
         "speakers": speakers,
-        "music": {"present": None, "status": "not_measured: no separation model installed (Demucs, QUESTIONS.md Q6)"},
+        "music": music,
         "warnings": warnings,
     }

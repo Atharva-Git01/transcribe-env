@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 
 from .common import TRX_HOME, TrxError, env_version, read_json, utc_now, write_json
-from .metrics import cer, self_test, speaker_accuracy, wer
+from .metrics import cer, cer_level, self_test, speaker_accuracy, turn_alignment, wer
 from .stages import IMPLEMENTED
 
 FIXTURES = TRX_HOME / "evals" / "fixtures"
@@ -50,6 +50,27 @@ def hypothesis_text(run_dir) -> str:
     return " ".join(s["text"] for s in read_json(p)["segments"])
 
 
+def _write_comparison(path, result: dict) -> None:
+    """Human-readable per-turn comparison (truth vs output) for every fixture of this eval."""
+    lines = [f"# Eval {result['utc']} — environment {result['env_version']}", "",
+             "| fixture | engine | CER | normalised | loose | std | WER | spk | missing turns | Hindi forms | RTF | verdict |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for r in result["rows"]:
+        lines.append(f"| {r['fixture']} | {'+'.join(r['engines'])} | {r['cer']} | {r['cer_norm']} | {r['cer_loose']} | "
+                     f"{r['cer_std'] if r['cer_std'] is not None else '-'} | {r['wer']} | "
+                     f"{r['speaker_acc'] if r['speaker_acc'] is not None else '-'} | {r['missing_turns']}/{r['turns']} | "
+                     f"{r['hindi_forms'] if r['hindi_forms'] is not None else '-'} | {r['rtf']} | {r['verdict']} |")
+    for r in result["rows"]:
+        if not r.get("turn_rows"):
+            continue
+        lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | truth | output | output speakers | turn CER |",
+                  "|---|---|---|---|---|---|"]
+        for t in r["turn_rows"]:
+            lines.append(f"| {t['turn']} | {t['ref_speaker']} | {t['ref']} | {t['hyp'] or '— missing —'} | "
+                         f"{', '.join(t['hyp_speakers']) or '-'} | {t['cer']} |")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str | None = None,
              save_baseline: bool = False, lang: str | None = None) -> dict:
     ok, detail = self_test()
@@ -74,7 +95,14 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
         hyp = hypothesis_text(EVAL_RUNS / info["run_id"])
         report = read_json(EVAL_RUNS / info["run_id"] / "report.json")
         tj = EVAL_RUNS / info["run_id"] / "out" / "transcript.json"
-        spk = speaker_accuracy(truth.get("segments", []), read_json(tj)["segments"]) if tj.is_file() else None
+        hyp_segs = read_json(tj)["segments"] if tj.is_file() else []
+        spk = speaker_accuracy(truth.get("segments", []), hyp_segs) if hyp_segs else None
+        lang = truth.get("language", "")
+        turns = turn_alignment(truth.get("segments", []), hyp_segs) if truth.get("segments") else []
+        from .stages.cleanup import lang_forms
+        hindi = lang_forms("mr")[0] if lang == "mr" else frozenset()
+        hindi_forms = sum(1 for w in hyp.split() if w.strip(".,?!।") in hindi)
+        std_ref = truth.get("reference_text_standard")
         rows.append({
             "fixture": f["id"], "exit": name, "verdict": info["verdict"], "recipe": info["recipe"],
             "engines": report["metrics"].get("engines", []), "language": report["metrics"].get("language"),
@@ -82,12 +110,20 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             "seconds": round(time.time() - t0, 1), "run_id": info["run_id"],
             "flagged_time_ratio": report["metrics"].get("flagged_time_ratio"),
             "speaker_acc": spk, "speakers_found": report["metrics"].get("speakers_found"),
+            "cer_norm": round(cer_level(truth["reference_text"], hyp, lang, "norm"), 4),
+            "cer_loose": round(cer_level(truth["reference_text"], hyp, lang, "loose"), 4),
+            "cer_std": round(cer_level(std_ref, hyp, lang, "norm"), 4) if std_ref else None,
+            "missing_turns": sum(1 for t in turns if not t["hyp"]), "turns": len(turns),
+            "hindi_forms": hindi_forms if lang == "mr" else None,
+            "rtf": round((time.time() - t0) / max(1e-6, float(truth.get("duration_sec") or 1)), 2),
+            "turn_rows": turns,
         })
     result = {"schema": "trx.eval/1", "env_version": env_version(), "utc": utc_now(),
               "overrides": {"engine": engine, "recipe": recipe, "lang": lang}, "rows": rows}
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"eval_{result['utc'].replace(':', '').replace('-', '')}_{engine or 'default'}.json"
     write_json(out, result)
+    _write_comparison(out.with_suffix(".md"), result)
     result["file"] = str(out.relative_to(TRX_HOME))
     base = read_json(BASELINE) if BASELINE.is_file() else {"scores": {}}
     regressions = []

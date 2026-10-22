@@ -1,6 +1,6 @@
 [recipe]
 id = "clean_studio"
-version = 4
+version = 5
 description = "Clean, wide-band, unclipped recording (studio, dictation, good microphone)."
 when_to_use = "SNR >= 30 dB, clipping < 0.05 %, wideband or fullband."
 when_not_to_use = "Anything noisy or telephone-band."
@@ -19,6 +19,10 @@ min_speech_ms = 250
 min_silence_ms = 500
 speech_pad_ms = 200
 max_segment_s = 28.0
+gap_audit = true                  # re-check pauses that still hold speech-level sound (quiet speech, PLAN P4)
+gap_threshold = 0.2
+gap_min_s = 0.3
+gap_energy_db = 15.0
 
 [lid]
 mode = "auto"
@@ -40,7 +44,10 @@ language = "auto"
 initial_prompt_file = "prompts/initial_prompts/{lang}/general.txt"
 word_timestamps = true
 segmentation = "vad_concat"        # "vad_concat" (speech joined into <= 30 s windows; best CER, E14) | "clips"
-split_max_s = 10.0                # output segments longer than this are cut at word boundaries (text unchanged)
+split_max_s = 10.0
+recover_missed_turns = true       # a turn with speech but no words is decoded again on its own (PLAN P3)
+recover_min_s = 0.3
+recover_min_logprob = -0.8         # recovered text must be at least this confident (Whisper invents text on short clips)                # output segments longer than this are cut at word boundaries (text unchanged)
 group_max_s = 20.0               # clips mode only: VAD regions merged into clips of at most this length
 group_max_gap_s = 0.8             # clips mode only: regions closer than this are merged
 

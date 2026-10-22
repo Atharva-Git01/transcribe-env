@@ -18,6 +18,7 @@ WORD = re.compile(r"[^\s\.,!?।॥;:\"'()]+")
 
 
 LATIN_OR_DIGIT = re.compile(r"[A-Za-z0-9]")
+LATIN_WORD = re.compile(r"[A-Za-z][A-Za-z'\-]*")
 
 
 def _lexicon(lang: str):
@@ -114,6 +115,7 @@ def run(ctx: Ctx, params: dict) -> None:
         if len(ctx.segments) != before:
             ctx.log.add("polish", f"split {len(ctx.segments) - before} line(s) at speaker changes",
                         "Every transcript line gets one speaker; words are not changed, only where lines break.")
+    out_cfg = load_config("defaults")["output"]
     flagged = 0
     for s in ctx.segments:
         lang = s.get("language") or ctx.language or ""
@@ -147,13 +149,22 @@ def run(ctx: Ctx, params: dict) -> None:
             if foreign:
                 kind = "Arabic/Urdu" if ARABIC.search(s["text"]) else "non-Devanagari"
                 flags.append(f"wrong_script: {kind} characters ({''.join(foreign[:5])})")
-        lex = _lexicon(lang)
+        if s.get("recovered"):
+            flags.append("recovered_turn: decoded on its own after the first pass missed it")
+        if any(q["track"] == s.get("track") and min(q["end"], s["end"]) - max(q["start"], s["start"]) > 0.1
+               for q in ctx.quiet_regions):
+            flags.append("quiet_speech: found only by the second, more sensitive speech check")
+        lex = _lexicon(lang) if out_cfg.get("spelling", "standard") == "standard" else None
         if lex is not None:
             hot = set(rec.get("hotwords") or [])
             unknown = [w for w in lm_tokens(s["text"]) if len(w) > 1 and not LATIN_OR_DIGIT.search(w)
                        and w not in hot and lex.count(w) < int(thr.get("lexicon_min_count", 3))]
             if unknown:
                 flags.append(f"unknown_words: {', '.join(dict.fromkeys(unknown))} (not in the {lang} lexicon)")
+        if lang in ("mr", "hi") and out_cfg.get("english_words") == "devanagari":
+            latin = [w for w in WORD.findall(s["text"]) if LATIN_WORD.fullmatch(w)]
+            if latin:
+                flags.append(f"latin_script: {', '.join(latin[:5])} (convention: English words in Devanagari)")
         if lang == "mr":
             from .cleanup import lang_forms
             hindi = sorted(set(tokens) & lang_forms("mr")[0])
@@ -226,3 +237,21 @@ def run(ctx: Ctx, params: dict) -> None:
         cleanup.run(ctx, defaults["llm_cleanup"])
     else:
         ctx.log.add("polish", "LLM cleanup off", "config/defaults.toml [llm_cleanup].enabled = false.")
+
+    if out_cfg.get("numbers") == "words":
+        from ..numbers import digits_to_words
+        converted, left_over = 0, set()
+        for seg in ctx.segments:
+            lang = seg.get("language") or ctx.language or ""
+            new, n, left = digits_to_words(seg["text"], lang)
+            if n:
+                seg.setdefault("text_asr", seg["text"])
+                seg["text"] = new
+                seg.setdefault("edits", []).append({"by": "numbers as words", "count": n})
+                converted += n
+            left_over |= set(left)
+        if converted or left_over:
+            ctx.log.add("polish", f"numbers as words: {converted} converted"
+                        + (f"; left as written: {sorted(left_over)}" if left_over else ""),
+                        "Owner convention: numbers are written as words (decimals, times and similar are left as "
+                        "recognised rather than guessed).")

@@ -115,6 +115,7 @@
       "required": ["present", "status"],
       "properties": {
         "present": {"type": ["boolean", "null"]},
+        "background_vs_speech_db": {"type": ["number", "null"]},
         "status": {"type": "string"}
       }
     },

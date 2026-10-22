@@ -15,6 +15,10 @@ relaxed_log_prob_threshold = -2.0
 [output]
 style = "verbatim"                # "verbatim" (forensic, default) | "readable"
 formats = ["txt", "srt", "vtt", "json"]
+# Owner convention (2026-10-22): standard spelling, numbers as words, English words in Devanagari.
+spelling = "standard"             # "standard": words the lexicon does not know are listed for the reviewer | "as_recognised"
+numbers = "words"                 # "words": integers and % become words (library/numbers/<lang>.toml) | "as_recognised"
+english_words = "devanagari"      # "devanagari": Latin-script words in mr/hi lines are listed for the reviewer | "as_recognised"
 review_tag = "[review]"           # appended to every flagged line; speakers are SPK1, SPK2 … or SPK? (unknown)
 
 [languages]

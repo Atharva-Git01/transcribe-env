@@ -160,6 +160,46 @@ def _chunk_key(**parts) -> str:
     return hashlib.sha256(json.dumps(parts, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
 
 
+def turn_units(turns: list[dict], speech, max_s: float = 30.0, max_gap: float = 0.5) -> list[dict]:
+    """Decode units for segmentation = "turns": adjacent same-speaker turns merged (gap <= max_gap, length <= max_s);
+    a longer turn is cut at the speech-region boundaries inside it, or at max_s."""
+    units = []
+    for t in sorted(turns, key=lambda x: x["start"]):
+        if units and units[-1]["speaker"] == t["speaker"] and t["start"] - units[-1]["end"] <= max_gap \
+                and t["end"] - units[-1]["start"] <= max_s:
+            units[-1]["end"] = t["end"]
+        else:
+            units.append({"start": t["start"], "end": t["end"], "speaker": t["speaker"]})
+    out = []
+    for u in units:
+        a = u["start"]
+        while u["end"] - a > max_s:
+            cuts = [e for s0, e in speech if a + 1.0 < e < a + max_s]
+            b = max(cuts) if cuts else a + max_s
+            out.append(dict(u, start=a, end=b))
+            a = b
+        out.append(dict(u, start=a))
+    return out
+
+
+def _plausible(seg: dict, params: dict) -> bool:
+    """A recovered (short, decoded alone) segment is kept only if it does not look invented: no loop or repeated
+    words, no character runs, decent confidence. Whisper tends to invent repeats on short clips."""
+    from .polish import CHAR_RUN, WORD, find_loop
+    toks = WORD.findall(seg["text"])
+    if not toks or find_loop(toks, set()) or CHAR_RUN.search(seg["text"]):
+        return False
+    if len(toks) >= 2 and len(set(toks)) <= len(toks) // 2:          # e.g. "x x", "a b b b"
+        return False
+    if seg.get("avg_logprob") is not None and seg["avg_logprob"] < float(params.get("recover_min_logprob", -0.8)):
+        return False
+    return not (seg.get("no_speech_prob") is not None and seg["no_speech_prob"] > 0.5)
+
+
+def _words_in(segs: list[dict], a: float, b: float) -> int:
+    return sum(1 for sg in segs for w in (sg.get("words") or []) if a <= (w["start"] + w["end"]) / 2 <= b)
+
+
 def run(ctx: Ctx, params: dict) -> None:
     lang = ctx.language
     table = params["engine_table_primary"]
@@ -195,7 +235,19 @@ def run(ctx: Ctx, params: dict) -> None:
             audio, _ = read_wav(tr.wav16)
             speech_sec = sum(e - s for s, e in tr.speech)
             groups = [g for g in ctx.segment_languages if g["track"] == tr.label]
-            if not chunk_s:
+            if params.get("segmentation") == "turns" and ctx.turns and len(ctx.tracks) == 1:
+                # one decode per speaker turn: each turn's text belongs to that turn (PLAN P3/P5)
+                segs = []
+                for u in turn_units(ctx.turns, tr.speech):
+                    a, b = max(0.0, u["start"] - 0.1), min(len(audio) / 16000.0, u["end"] + 0.1)
+                    part = engine().transcribe(audio[int(a * 16000):int(b * 16000)], lang, fw, None,
+                                               _prompt(prompt_tpl, lang), bool(params.get("word_timestamps", True)))
+                    for sg in _shift(part, a):
+                        sg.update(language=lang, turn_speaker=u["speaker"])
+                        sg["window_compression_ratio"] = sg.get("compression_ratio")
+                        sg["compression_ratio"] = text_compression_ratio(sg["text"])
+                        segs.append(sg)
+            elif not chunk_s:
                 segs = _decode(engine(), audio, tr.speech, groups, params, vad, fw, lang, prompt_tpl)
             else:
                 segs = []
@@ -229,6 +281,30 @@ def run(ctx: Ctx, params: dict) -> None:
                 if reused:
                     ctx.log.add("recognise", f"track {tr.label}: reused {reused} of {len(spans)} saved chunk(s)",
                                 "These chunks were finished before the interruption and match the plan exactly.")
+            if params.get("recover_missed_turns", True) and segs:
+                # a speaker turn (or speech region) with no recognised words is decoded again on its own (PLAN P3)
+                units = ([t for t in ctx.turns] if ctx.turns and len(ctx.tracks) == 1 else
+                         [{"start": a0, "end": b0, "speaker": tr.label} for a0, b0 in tr.speech])
+                min_s = float(params.get("recover_min_s", 0.3))
+                recovered = []
+                for u in units:
+                    if u["end"] - u["start"] < min_s or _words_in(segs, u["start"], u["end"]) > 0:
+                        continue
+                    a, b = max(0.0, u["start"] - 0.1), min(len(audio) / 16000.0, u["end"] + 0.1)
+                    part = engine().transcribe(audio[int(a * 16000):int(b * 16000)], lang, fw, None, None,
+                                               bool(params.get("word_timestamps", True)))
+                    for sg in _shift(part, a):
+                        if sg["text"].strip() and _plausible(sg, params):
+                            sg.update(language=lang, recovered=True)
+                            sg["window_compression_ratio"] = sg.get("compression_ratio")
+                            sg["compression_ratio"] = text_compression_ratio(sg["text"])
+                            recovered.append(sg)
+                if recovered:
+                    segs += recovered
+                    ctx.log.add("recognise", f"track {tr.label}: recovered {len(recovered)} segment(s) from turns "
+                                "the first pass left empty", "Short replies inside long windows get skipped by "
+                                "Whisper; each empty turn was decoded again on its own (flagged for review).",
+                                recovered=[(round(x["start"], 2), round(x["end"], 2), x["text"]) for x in recovered])
             step = "primary"
             if not any(s["text"] for s in segs) and speech_sec >= float(ladder.get("min_speech_sec", 1.0)):
                 # E04 fallback ladder: relax silence checks -> no VAD -> (other engine is tried below)

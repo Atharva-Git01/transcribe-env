@@ -10,13 +10,15 @@ META_KEYS = ["id", "version", "description", "when_to_use", "when_not_to_use", "
 # AND listing it here; `trx doctor` / `trx test` reject anything else as dead config.
 STAGE_KEYS = {
     "convert": {"channels", "highpass_hz", "loudnorm_target_lufs", "sample_rate"},
-    "separate": {"required", "engine"},   # stage not implemented yet (Demucs needs torch); skipped while required=false
-    "denoise": {"engine", "fallback", "skip_below_dbfs", "attenuation_limit_db"},
-    "vad": {"engine", "threshold", "min_speech_ms", "min_silence_ms", "speech_pad_ms", "max_segment_s"},
+    "separate": {"required", "engine", "model", "shifts", "overlap", "apply_if_background_db_above"},
+    "denoise": {"engine", "fallback", "skip_below_dbfs", "attenuation_limit_db", "speech_guard", "speech_guard_threshold",
+                "speech_guard_db"},
+    "vad": {"engine", "threshold", "min_speech_ms", "min_silence_ms", "speech_pad_ms", "max_segment_s", "gap_audit",
+            "gap_threshold", "gap_min_s", "gap_energy_db"},
     "lid": {"mode", "per_segment"},
     "diarize": {"required", "mode", "num_speakers", "max_speakers", "split_cosine", "min_speaker_s", "window_s",
                 "hop_s", "switch_penalty", "min_turn_s", "cluster_threshold", "crosstalk_suppression_db"},
-    "recognise": {"language", "initial_prompt_file", "word_timestamps", "segmentation", "split_max_s", "chunk_minutes", "group_max_s",
+    "recognise": {"language", "initial_prompt_file", "word_timestamps", "segmentation", "split_max_s", "chunk_minutes", "recover_missed_turns", "recover_min_s", "recover_min_logprob", "group_max_s",
                   "group_max_gap_s"},
     "recognise.faster_whisper": {"compute_type_gpu", "compute_type_cpu", "beam_size", "best_of", "patience",
                                  "temperature", "compression_ratio_threshold", "log_prob_threshold",

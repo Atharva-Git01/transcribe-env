@@ -167,15 +167,17 @@ def main(argv: list[str]) -> int:
             for f in list_fixtures():
                 out(f"  [{'ok' if f['ok'] else 'BAD'}] {f['id']}: {f['detail']}")
             res = run_eval(args.engine, args.recipe, args.fixture, args.save_baseline, args.lang)
-            out(f"\n{'fixture':<24} {'recipe':<18} {'engine':<32} {'CER':>7} {'WER':>7} {'base':>7} {'spk':>6} {'verdict':<7} {'sec':>6}")
+            out(f"\n{'fixture':<28} {'recipe':<22} {'engine':<30} {'CER':>6} {'nCER':>6} {'WER':>6} {'base':>6} "
+                f"{'spk':>5} {'miss':>5} {'RTF':>5} {'verdict':<7}")
             for r in res["rows"]:
                 base = "-" if r["baseline_cer"] is None else f"{r['baseline_cer']:.4f}"
                 spk = "-" if r.get("speaker_acc") is None else f"{r['speaker_acc']:.3f}"
-                out(f"{r['fixture']:<24} {r['recipe'] or '-':<18} {'+'.join(r['engines']) or '-':<32} {r['cer']:>7.4f} "
-                    f"{r['wer']:>7.4f} {base:>7} {spk:>6} {r['verdict']:<7} {r['seconds']:>6}")
+                out(f"{r['fixture']:<28} {r['recipe'] or '-':<22} {'+'.join(r['engines'])[:30] or '-':<30} "
+                    f"{r['cer']:>6.3f} {r['cer_norm']:>6.3f} {r['wer']:>6.3f} {base:>6} {spk:>5} "
+                    f"{str(r['missing_turns']) + '/' + str(r['turns']):>5} {r['rtf']:>5} {r['verdict']:<7}")
             for reg in res["regressions"]:
                 out(f"REGRESSION {reg}")
-            out(f"saved {res['file']}" + (" and updated evals/baseline.json" if args.save_baseline else ""))
+            out(f"saved {res['file']} (+ per-turn comparison .md)" + (" and updated evals/baseline.json" if args.save_baseline else ""))
             return status_line(cmd, "OK" if not res["regressions"] else "EVAL_REGRESSION",
                                results=res["file"], regressions=len(res["regressions"]))
 

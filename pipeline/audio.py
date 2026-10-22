@@ -17,6 +17,16 @@ def ffmpeg(args: list[str], timeout: int = 7200) -> None:
         raise TrxError("INTERNAL_ERROR", "ffmpeg failed: " + res.stderr.decode("utf-8", "replace")[-400:])
 
 
+def decode_window(path: Path, start: float, dur: float, sr: int) -> np.ndarray:
+    """Mono float32 at `sr` of [start, start + dur) seconds, via ffmpeg (no full decode of long files)."""
+    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{max(0.0, start):.3f}", "-t", f"{dur:.3f}", "-i", str(path),
+           "-map", "0:a:0", "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
+    res = subprocess.run(cmd, capture_output=True, timeout=600)
+    if res.returncode != 0:
+        raise TrxError("INPUT_UNREADABLE", "ffmpeg window decode failed: " + res.stderr.decode("utf-8", "replace")[-300:])
+    return np.frombuffer(res.stdout, dtype=np.float32).copy()
+
+
 def decode_mono(path: Path, sr: int = 16000) -> np.ndarray:
     """Any local media file -> mono float32 at `sr`, via ffmpeg (no PyAV dependency)."""
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1", "-ar", str(sr),

@@ -15,5 +15,4 @@ setup/logs/
 toolchain/downloads/
 toolchain/*.log
 # private recordings and their transcripts stay on this PC only (never pushed)
-evals/fixtures/*/audio.*
-evals/fixtures/*/truth.json
+evals/fixtures/*/

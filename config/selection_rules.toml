@@ -16,6 +16,12 @@ when = [["channels.layout_class", "==", "true_stereo"]]
 reason = "Two genuinely different channels: each channel is treated as one speaker."
 
 [[rule]]
+id = "R2b_music"
+recipe = "noisy_field_audio"
+when = [["music.present", "==", true]]
+reason = "Music or TV behind the voice (measured with Demucs): separate the voice first."
+
+[[rule]]
 id = "R3_multi_speaker"
 recipe = "meeting_multi_speaker"
 when = [["speakers.estimate", ">=", 3]]

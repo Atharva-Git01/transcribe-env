@@ -27,6 +27,7 @@ HOME = Path(__file__).resolve().parents[1]
 SOURCES = HOME / "setup" / "sources.toml"
 LOCK = HOME / "setup" / "requirements.lock"
 LOCK_NODEPS = HOME / "setup" / "requirements-nodeps.lock"
+LOCK_ML = HOME / "setup" / "requirements-ml.lock"          # v0.7: PyTorch CPU, Demucs, transformers, sentencepiece
 VENV = HOME / "toolchain" / "python" / ".venv"
 VPY = VENV / "Scripts" / "python.exe"
 
@@ -106,6 +107,9 @@ def install(phase: int) -> None:
             subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True)
             subprocess.run([str(VPY), "-m", "pip", "install", "--no-cache-dir", "--require-hashes", "-r", str(LOCK)],
                            check=True)
+            if LOCK_ML.is_file():
+                subprocess.run([str(VPY), "-m", "pip", "install", "--no-cache-dir", "--no-deps", "--require-hashes",
+                                "-r", str(LOCK_ML)], check=True)
             if LOCK_NODEPS.is_file():
                 subprocess.run([str(VPY), "-m", "pip", "install", "--no-cache-dir", "--no-deps", "--require-hashes",
                                 "-r", str(LOCK_NODEPS)], check=True)

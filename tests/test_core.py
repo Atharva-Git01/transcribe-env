@@ -248,6 +248,31 @@ class TestResume(unittest.TestCase):
             self.assertIsNone(find_unfinished(str(audio), {"engine": "x"}, runs))
 
 
+class TestNumbersAsWords(unittest.TestCase):
+    def test_marathi_and_hindi(self):
+        from pipeline.numbers import digits_to_words, to_words
+        self.assertEqual(to_words(2, "mr"), "दोन")
+        self.assertEqual(to_words(125, "mr"), "एकशे पंचवीस")
+        self.assertEqual(to_words(100, "mr"), "शंभर")
+        self.assertEqual(to_words(150000, "hi"), "एक लाख पचास हज़ार")
+        text, n, left = digits_to_words("आम्ही ३ पुस्तके, 25% सवलत आणि 4:15 वाजता", "mr")
+        self.assertEqual(text, "आम्ही तीन पुस्तके, पंचवीस टक्के सवलत आणि 4:15 वाजता")
+        self.assertEqual((n, left), (2, ["4:15"]))                 # times are left as written, and reported
+        self.assertEqual(digits_to_words("no digits here", "mr"), ("no digits here", 0, []))
+
+
+class TestTurnUnits(unittest.TestCase):
+    def test_merge_and_split(self):
+        from pipeline.stages.recognise import turn_units
+        turns = [{"start": 0.0, "end": 2.0, "speaker": "SPK1"}, {"start": 2.2, "end": 4.0, "speaker": "SPK1"},
+                 {"start": 4.5, "end": 5.0, "speaker": "SPK2"}]
+        u = turn_units(turns, [(0.0, 4.0), (4.5, 5.0)])
+        self.assertEqual([(x["start"], x["end"], x["speaker"]) for x in u], [(0.0, 4.0, "SPK1"), (4.5, 5.0, "SPK2")])
+        long = turn_units([{"start": 0.0, "end": 70.0, "speaker": "SPK1"}], [(0.0, 25.0), (26.0, 50.0), (51.0, 70.0)])
+        self.assertTrue(all(x["end"] - x["start"] <= 30.0 for x in long))   # long turns cut at speech boundaries
+        self.assertEqual(long[0]["end"], 25.0)
+
+
 class TestOfflineGuard(unittest.TestCase):
     def test_blocks_public_hosts(self):
         offline.install()

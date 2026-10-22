@@ -1,6 +1,6 @@
 [recipe]
 id = "code_switched"
-version = 4
+version = 6
 description = "Speakers mix Marathi, Hindi and English inside sentences."
 when_to_use = "language.code_switch_risk == high (measured from phase 1)."
 when_not_to_use = "Single-language audio — forcing per-segment language ID there adds errors."
@@ -17,6 +17,9 @@ engine = "deep_filter"
 fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 18.0
+speech_guard = false              # TRIED 2026-10-23 and rejected: splicing the original back broke Whisper (CER 0.51 -> 0.92, E21)
+speech_guard_threshold = 0.2
+speech_guard_db = 12.0
 
 [vad]
 engine = "silero"
@@ -25,6 +28,10 @@ min_speech_ms = 200
 min_silence_ms = 300
 speech_pad_ms = 200
 max_segment_s = 15.0              # shorter windows so each can carry its own language
+gap_audit = true                  # re-check pauses that still hold speech-level sound (quiet speech, PLAN P4)
+gap_threshold = 0.2
+gap_min_s = 0.3
+gap_energy_db = 15.0
 
 [lid]
 mode = "auto"
@@ -46,7 +53,10 @@ language = "per_segment"
 initial_prompt_file = "prompts/initial_prompts/mixed/general.txt"
 word_timestamps = true
 segmentation = "vad_concat"        # "vad_concat" (speech joined into <= 30 s windows; best CER, E14) | "clips"
-split_max_s = 10.0                # output segments longer than this are cut at word boundaries (text unchanged)
+split_max_s = 10.0
+recover_missed_turns = true       # a turn with speech but no words is decoded again on its own (PLAN P3)
+recover_min_s = 0.3
+recover_min_logprob = -0.8         # recovered text must be at least this confident (Whisper invents text on short clips)                # output segments longer than this are cut at word boundaries (text unchanged)
 group_max_s = 12.0               # clips mode only: VAD regions merged into clips of at most this length
 group_max_gap_s = 0.8             # clips mode only: regions closer than this are merged
 

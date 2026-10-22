@@ -229,3 +229,40 @@ build = ["setup/make_fleurs_fixture.py", "--lang", "hi", "--tsv", "{tsv}", "--ta
 files = [ { dest = "evals/fixtures/fleurs_hi_test10/truth.json" } ]
 extra_mb = 27
 note = "10 read Hindi sentences (clean speech) as one eval fixture"
+
+[[item]]
+id = "demucs_htdemucs"
+phase = 4
+kind = "file"
+licence = "MIT"
+files = [
+  { url = "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th", dest = "toolchain/models/demucs-htdemucs/955717e8-8726e21a.th", sha256 = "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4", size = 84141911 },
+]
+note = "copy demucs/remote/htdemucs.yaml from the venv next to it; SOURCE.json written after the sha256 check"
+
+[[item]]
+id = "fixture_fleurs_mr_music"
+phase = 6
+kind = "build"
+licence = "CC-BY-4.0 (FLEURS) + public domain music (US Marine Band, Wikimedia Commons)"
+downloads = [
+  { url = "https://upload.wikimedia.org/wikipedia/commons/3/3d/Scott_Joplin%27s_%22Sunflower_Slow_Drag%22_performed_by_the_United_States_Marine_Band.oga", as = "music.oga", sha256 = "eddbe4538107fdb8a2b9f00935a901c4c3beae012653c9fd871a6d7952941799" },
+]
+build = ["setup/make_mix_fixture.py", "--base", "fleurs_mr_test10", "--music", "{music}", "--snr-db", "5", "--music-credit", "Scott Joplin, Sunflower Slow Drag, performed by the United States Marine Band (public domain, Wikimedia Commons)"]
+files = [ { dest = "evals/fixtures/fleurs_mr_test10_music5db/truth.json" } ]
+extra_mb = 4
+note = "needs fixture_fleurs_mr first; speech with music behind it (tests Demucs + the probe music rule)"
+
+[[item]]
+id = "fixture_ami_es2004a"
+phase = 6
+kind = "build"
+licence = "CC-BY-4.0 (AMI Meeting Corpus)"
+downloads = [
+  { url = "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror//amicorpus/ES2004a/audio/ES2004a.Mix-Headset.wav", as = "audio.wav", sha256 = "3e2560b19bee6952c7c7ce041b0f1ea8a7ea9468044c4eea79d2a2c67e24ab0f" },
+  { url = "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip", as = "annotations.zip", sha256 = "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d" },
+]
+build = ["setup/make_ami_fixture.py", "--meeting", "ES2004a", "--audio", "{audio}", "--annotations", "{annotations}", "--dur", "180"]
+files = [ { dest = "evals/fixtures/ami_es2004a_450s/truth.json" } ]
+extra_mb = 57
+note = "4-person English meeting, 3 minutes: validates the speaker-count estimate and speaker accuracy on 3+ speakers"

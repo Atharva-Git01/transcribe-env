@@ -181,14 +181,17 @@ size_mb = 33
 note = "run by the sherpa_onnx Python package from the venv (no torch, no account)"
 
 [[component]]
-id = "demucs"
-kind = "python"
+id = "demucs_htdemucs"
+kind = "model"
 phase = 4
-status = "not_installed"
-licence = "MIT"
+status = "installed"
+licence = "MIT (Demucs v4, Meta)"
 commercial_ok = "yes"
-source = "https://github.com/adefossez/demucs"
-note = "music/voice separation; needs torch (~1 GB CPU) + 80 MB model. Recipes keep `separate` required=false, so it is skipped. Owner decision — QUESTIONS.md"
+path = "toolchain/models/demucs-htdemucs"
+marker = "htdemucs.yaml"
+source = "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th"
+size_mb = 84
+note = "music/TV separation (separate stage, probe music check); runs on CPU with the venv's PyTorch 2.14 (setup/requirements-ml.lock)"
 
 [[component]]
 id = "speaker_eres2netv2"

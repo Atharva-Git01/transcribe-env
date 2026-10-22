@@ -9,7 +9,7 @@ import json
 import shutil
 import subprocess
 
-from ..audio import ffmpeg, read_wav, rms_dbfs
+from ..audio import ffmpeg, read_wav, rms_dbfs, write_wav
 from ..common import TRX_HOME, env_version, sha256_file, write_json
 from ..context import Ctx
 
@@ -26,6 +26,45 @@ def _deep_filter(src, out_dir, atten_db) -> tuple[bool, str]:
     if res.returncode != 0 or not produced.is_file():
         return False, (res.stderr or res.stdout).decode("utf-8", "replace")[-300:]
     return True, "ok"
+
+
+def guard_spans(raw16, dn16, vad_params: dict, threshold: float, drop_db: float,
+                win: float = 0.25) -> list[tuple[float, float]]:
+    """Stretches that are speech in the ORIGINAL (Silero >= threshold, no padding) but that the denoiser turned down
+    by >= drop_db: soft speech the denoiser treated as noise (on the Pappa call: short replies and a quiet sentence)."""
+    from .vad import speech_regions
+    sr = 16000
+    spans: list[list[float]] = []
+    for s, e in speech_regions(raw16, dict(vad_params, threshold=threshold, speech_pad_ms=0, min_silence_ms=200)):
+        t = s
+        while t < e:
+            w = min(win, e - t)
+            a, b = int(t * sr), int((t + w) * sr)
+            if w >= 0.1 and rms_dbfs(raw16[a:b]) - rms_dbfs(dn16[a:b]) >= drop_db:
+                if spans and abs(spans[-1][1] - t) < 1e-6:
+                    spans[-1][1] = t + w
+                else:
+                    spans.append([t, t + w])
+            t += win
+    return [(round(a, 3), round(b, 3)) for a, b in spans]
+
+
+def restore(raw48, dn48, spans, sr: int = 48000, fade: float = 0.02):
+    """Put the original audio back into the denoised track on `spans`, with short crossfades."""
+    import numpy as np
+    out = dn48.copy()
+    n = int(fade * sr)
+    for s, e in spans:
+        a, b = max(0, int(s * sr) - n), min(len(out), int(e * sr) + n)
+        if b <= a:
+            continue
+        w = np.ones(b - a, dtype=np.float32)
+        k = min(n, (b - a) // 2)
+        if k:
+            ramp = np.linspace(0.0, 1.0, k, dtype=np.float32)
+            w[:k], w[-k:] = ramp, ramp[::-1]
+        out[a:b] = w * raw48[a:b] + (1 - w) * dn48[a:b]
+    return out
 
 
 def run(ctx: Ctx, params: dict) -> None:
@@ -70,8 +109,25 @@ def run(ctx: Ctx, params: dict) -> None:
                     shutil.copyfile(tr.wav48, dn48)
                     used = "copy_through"
                     break
+        raw16 = tr.wav16                                        # the convert stage's (not denoised) 16 kHz track
         tr.wav16 = ctx.work / f"track{tr.index + 1}_16k_dn.wav"
         ffmpeg(["-i", str(dn48), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tr.wav16)])
+        restored = []
+        if used != "copy_through" and params.get("speech_guard", True) and raw16 and raw16.is_file():
+            r16, _ = read_wav(raw16)
+            d16, _ = read_wav(tr.wav16)
+            restored = guard_spans(r16, d16, ctx.stage_params("vad") or {}, float(params.get("speech_guard_threshold", 0.2)),
+                                   float(params.get("speech_guard_db", 12.0)))
+            if restored:
+                r48, sr48 = read_wav(tr.wav48)
+                d48, _ = read_wav(dn48)
+                write_wav(dn48, restore(r48, d48[:len(r48)] if len(d48) >= len(r48) else
+                                        __import__("numpy").pad(d48, (0, len(r48) - len(d48))), restored, sr48), sr48)
+                ffmpeg(["-i", str(dn48), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tr.wav16)])
+                ctx.log.add("denoise", f"track {tr.label}: kept the original audio on {len(restored)} stretch(es) "
+                            f"({sum(b - a for a, b in restored):.1f} s) where the denoiser removed soft speech",
+                            "Denoising must never erase speech: where the original is speech but the denoised track is "
+                            f"{params.get('speech_guard_db', 12.0)} dB+ quieter, the original is kept.", spans=restored)
         ctx.custody.add(tr.wav16, "derived", "denoise")
         write_json(memo, {"key": key, "method": used, "out16": sha256_file(tr.wav16)})
         ctx.log.add("denoise", f"track {tr.label}: {used}",
