@@ -52,11 +52,12 @@ setup/       the only internet-touching part, run once per tier after the owner'
 | Phase | Adds | Status |
 |---|---|---|
 | 0 | skeleton, probe, recipe selection, plan, custody, doctor, explain | **built** |
-| 1 | own venv (hash-locked); convert, denoise (DeepFilterNet3 → ffmpeg afftdn), VAD (Silero), 2-step language ID, faster-whisper medium on the GPU (CUDA 12), polish flags, gate, export | **built** |
-| 2 | large-v3-turbo + large-v3; dual-engine verify stage; `trx eval` scoring + baseline | **built** — IndicConformer not installed (QUESTIONS.md Q1) |
-| 3 | Gemma 3 4B (Q4_K_M) via llama.cpp `llama-server` (Vulkan), 5 rejection gates | **built, off by default** (E17) |
-| 4 | sherpa-onnx speaker diarization | **built** — Demucs separation and resumable long files not built (QUESTIONS.md) |
-| 5 | weak-operator hardening: one JSON status line + exit code per command, `trx test`, dead-config check | **built** |
+| 1 | own venv (hash-locked); convert, denoise (DeepFilterNet3 → ffmpeg afftdn), VAD (Silero), 2-step language ID, faster-whisper on the GPU (CUDA 12), polish flags, gate, export | **built** |
+| 2 | large-v3 (default) + turbo (`--fast`); verify stage (cross-check, off); `trx eval` scoring + baseline | **built** — IndicConformer waits for the owner's Hugging Face login |
+| 3 | Gemma 3 4B via llama.cpp `llama-server` (Vulkan) — suggestions filtered by a word gate + language model | **built, ON** since 0.6.0 (E17) |
+| 4 | diarization on every file: by channel (true stereo) or by voice (ERes2NetV2 embeddings, E19); lines split at speaker changes | **built** — Demucs waits for the HF step (shares PyTorch) |
+| 5 | weak-operator hardening: one JSON status line + exit code per command, `trx test`, dead-config check, language confirmation, resume of interrupted runs, 10-min chunks for long files | **built** |
+| 6 | Marathi + Hindi word language models and lexicons (IndicCorp v2, CC-0); `--hotwords`; eval fixtures from FLEURS (CC-BY-4.0) | **built** |
 
 Status, numbers and open questions: `MORNING_REPORT.md`, `QUESTIONS.md`, `knowledge/CHANGELOG.md`.
 Full plan: `forensic media suit/doc/TRANSCRIPTION_ENVIRONMENT_PLAN.md`.

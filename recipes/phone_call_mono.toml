@@ -2,11 +2,11 @@
 
 [recipe]
 id = "phone_call_mono"
-version = 2
+version = 4
 description = "Telephone-band call recorded on one channel (or two identical channels). Marathi/Hindi likely."
 when_to_use = "bandwidth.class == narrowband; layout mono or duplicated_mono; SNR >= 12 dB."
 when_not_to_use = "Two genuinely different channels (use true_stereo_call); heavy noise (noisy_field_audio)."
-stages = ["convert", "denoise", "vad", "lid", "recognise", "verify", "polish", "gate", "export"]
+stages = ["convert", "denoise", "vad", "lid", "diarize", "recognise", "verify", "polish", "gate", "export"]
 
 [convert]
 channels = "downmix"              # duplicated mono collapses to one channel; NEVER split into fake speakers
@@ -30,8 +30,15 @@ max_segment_s = 28.0
 
 [lid]
 mode = "auto"                     # "auto" | "forced" (forced uses recognise.language)
-candidates = ["mr", "hi", "en"]
 per_segment = false
+
+[diarize]
+mode = "embed_cluster"            # speaker embeddings on 1 s windows, clustered + smoothed (E19)
+num_speakers = 2                  # a phone call has two parties (E19: estimating the count is unreliable on phone audio)
+window_s = 1.0
+hop_s = 0.25
+switch_penalty = 0.1              # smoothing: cost of changing speaker between neighbouring windows
+min_turn_s = 0.3
 
 [recognise]
 language = "auto"                 # resolved by lid unless --lang is given

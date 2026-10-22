@@ -24,8 +24,12 @@ offline.install()
 
 HELP = """trx {v} — local, offline transcription environment
 
-  trx transcribe <file> [--recipe ID] [--style verbatim|readable] [--lang mr|hi|en] [--case NAME]
-                                   full run: copy + hash, probe, choose recipe, plan, run stages, report
+  trx transcribe <file> [--lang mr|hi|en|auto] [--fast] [--recipe ID] [--style verbatim|readable] [--case NAME]
+                                   full run: copy + hash, probe, choose recipe, plan, run stages, report.
+                                   Without --lang it shows the detected language and asks first.
+                                   --fast = turbo engine (about 2x faster, less accurate)
+                                   --hotwords FILE = names/places/terms of this case, one per line
+                                   An interrupted run of the same file continues where it stopped.
   trx watch [--once] [--interval SECONDS]
                                    process every new file dropped into inbox/
   trx probe <file> [--out FILE]    measure the audio only (writes a passport)
@@ -54,6 +58,8 @@ def build_parser() -> Parser:
     t.add_argument("--style", choices=["verbatim", "readable"])
     t.add_argument("--lang")
     t.add_argument("--case")
+    t.add_argument("--fast", action="store_true")
+    t.add_argument("--hotwords")
     w = sub.add_parser("watch", add_help=False)
     w.add_argument("--once", action="store_true")
     w.add_argument("--interval", type=int, default=10)
@@ -128,8 +134,22 @@ def main(argv: list[str]) -> int:
                                passport=args.out or None)
 
         if cmd == "transcribe":
-            from pipeline.run import transcribe
-            name, info = transcribe(args.file, args.recipe, args.style, args.lang, args.case)
+            from pipeline.langcheck import confirm
+            from pipeline.run import find_unfinished, resume, transcribe
+            engine = "faster_whisper_large_v3_turbo" if args.fast else None
+            from pipeline.hotwords import read_hotwords
+            hot = read_hotwords(args.hotwords) if args.hotwords else None
+            same = {k: v for k, v in {"recipe": args.recipe, "style": args.style, "engine": engine, "hotwords": hot,
+                                      "lang": None if args.lang in (None, "auto") else args.lang}.items() if v}
+            unfinished = find_unfinished(args.file, same)
+            if unfinished:  # same file + same options, interrupted earlier: continue it instead of starting over
+                out(f"resuming interrupted run {unfinished.name} (saved work is reused)")
+                name, info = resume(unfinished)
+            else:
+                lang, lang_how = confirm(args.file, args.lang)
+                name, info = transcribe(args.file, args.recipe, args.style, lang, args.case, engine=engine,
+                                        lang_how=lang_how, engine_how="--fast (turbo)" if args.fast else None,
+                                        hotwords=hot)
             out(f"run {info['run_id']}: {info['verdict']} — recipe {info['recipe']}")
             for r in info["reasons"]:
                 out(f"  {r}")
@@ -147,11 +167,12 @@ def main(argv: list[str]) -> int:
             for f in list_fixtures():
                 out(f"  [{'ok' if f['ok'] else 'BAD'}] {f['id']}: {f['detail']}")
             res = run_eval(args.engine, args.recipe, args.fixture, args.save_baseline, args.lang)
-            out(f"\n{'fixture':<24} {'recipe':<18} {'engine':<32} {'CER':>7} {'WER':>7} {'base':>7} {'verdict':<7} {'sec':>6}")
+            out(f"\n{'fixture':<24} {'recipe':<18} {'engine':<32} {'CER':>7} {'WER':>7} {'base':>7} {'spk':>6} {'verdict':<7} {'sec':>6}")
             for r in res["rows"]:
                 base = "-" if r["baseline_cer"] is None else f"{r['baseline_cer']:.4f}"
+                spk = "-" if r.get("speaker_acc") is None else f"{r['speaker_acc']:.3f}"
                 out(f"{r['fixture']:<24} {r['recipe'] or '-':<18} {'+'.join(r['engines']) or '-':<32} {r['cer']:>7.4f} "
-                    f"{r['wer']:>7.4f} {base:>7} {r['verdict']:<7} {r['seconds']:>6}")
+                    f"{r['wer']:>7.4f} {base:>7} {spk:>6} {r['verdict']:<7} {r['seconds']:>6}")
             for reg in res["regressions"]:
                 out(f"REGRESSION {reg}")
             out(f"saved {res['file']}" + (" and updated evals/baseline.json" if args.save_baseline else ""))

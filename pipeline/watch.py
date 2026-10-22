@@ -27,7 +27,7 @@ def scan_once() -> list[dict]:
         if digest in ledger:
             continue
         try:
-            name, info = transcribe(str(f))
+            name, info = transcribe(str(f), lang_how="auto: watch mode does not stop to ask per file; a weak guess makes the run REVIEW")
         except TrxError as e:
             name, info = e.name, {"run_id": None, "detail": e.detail}
         ledger[digest] = {"file": f.name, "run_id": info.get("run_id"), "exit": name, "utc": utc_now()}

@@ -1,6 +1,6 @@
 [recipe]
 id = "true_stereo_call"
-version = 2
+version = 3
 description = "Two genuinely different channels (e.g. call recorder with one party per channel)."
 when_to_use = "channels.layout_class == true_stereo (correlation below 0.99 or level difference above 1 dB)."
 when_not_to_use = "Duplicated mono (identical channels) — that is phone_call_mono."
@@ -28,7 +28,6 @@ max_segment_s = 28.0
 
 [lid]
 mode = "auto"
-candidates = ["mr", "hi", "en"]
 per_segment = false
 
 [diarize]

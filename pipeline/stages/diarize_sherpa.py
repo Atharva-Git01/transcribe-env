@@ -3,8 +3,11 @@ No torch, no account, fully local. Produces speaker turns; polish assigns each s
 """
 from __future__ import annotations
 
+import hashlib
+import json
+
 from ..audio import read_wav
-from ..common import TRX_HOME, write_json
+from ..common import TRX_HOME, env_version, sha256_file, write_json
 from ..context import Ctx
 
 MODELS = TRX_HOME / "toolchain" / "models" / "sherpa-diarization"
@@ -35,6 +38,18 @@ def diarize(audio, num_speakers: int = 0, threshold: float = 0.5, min_on: float 
 
 def run(ctx: Ctx, params: dict) -> None:
     tr = ctx.tracks[0]
+    path = ctx.work / "diarization.json"
+    key = hashlib.sha256(json.dumps({"audio": sha256_file(tr.wav16), "params": params, "env": env_version(),
+                                     "models": [SEG_MODEL.name, EMB_MODEL.name]}, sort_keys=True).encode()).hexdigest()
+    if path.is_file():  # resumed run: same audio, same settings -> reuse the saved result
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("key") == key:
+            ctx.turns = data["turns"]
+            n = len({t["speaker"] for t in ctx.turns})
+            ctx.metrics["diarization"], ctx.metrics["speakers_found"] = "sherpa_onnx", n
+            ctx.log.add("diarize", f"reused saved diarization: {n} speaker(s) in {len(ctx.turns)} turns",
+                        "Same audio and settings as before the interruption.")
+            return
     audio, _ = read_wav(tr.wav16)
     raw = diarize(audio, int(params.get("num_speakers", 0)), float(params.get("cluster_threshold", 0.5)),
                   float(params.get("min_turn_s", 0.3)))
@@ -43,8 +58,8 @@ def run(ctx: Ctx, params: dict) -> None:
         if t["speaker"] not in order:
             order.append(t["speaker"])
     ctx.turns = [{"start": t["start"], "end": t["end"], "speaker": f"SPK{order.index(t['speaker']) + 1}"} for t in raw]
-    path = ctx.work / "diarization.json"
-    write_json(path, {"engine": "sherpa-onnx pyannote-3.0 + wespeaker-resnet34", "turns": ctx.turns})
+    write_json(path, {"key": key, "engine": f"sherpa-onnx {SEG_MODEL.parent.name} + {EMB_MODEL.stem}",
+                      "turns": ctx.turns})
     ctx.custody.add(path, "derived", "diarize")
     ctx.metrics["diarization"] = "sherpa_onnx"
     ctx.metrics["speakers_found"] = len(order)

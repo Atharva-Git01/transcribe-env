@@ -189,3 +189,42 @@ licence = "MIT"
 commercial_ok = "yes"
 source = "https://github.com/adefossez/demucs"
 note = "music/voice separation; needs torch (~1 GB CPU) + 80 MB model. Recipes keep `separate` required=false, so it is skipped. Owner decision — QUESTIONS.md"
+
+[[component]]
+id = "speaker_eres2netv2"
+kind = "model"
+phase = 4
+status = "installed"
+licence = "Apache-2.0 (3D-Speaker)"
+commercial_ok = "yes"
+path = "toolchain/models/speaker-eres2netv2"
+marker = "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx"
+source = "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models"
+size_mb = 68
+note = "speaker embeddings for diarization mode embed_cluster (E19): 94.5 % of words on the right speaker on the Pappa call"
+
+# ---------------------------------------------------------------- phase 6 (language model correction)
+[[component]]
+id = "lm_mr_v1"
+kind = "model"
+phase = 6
+status = "installed"
+licence = "CC-0 (built from IndicCorp v2, AI4Bharat)"
+commercial_ok = "yes"
+path = "toolchain/models/lm-mr-v1"
+marker = "meta.json"
+source = "https://huggingface.co/datasets/ai4bharat/IndicCorpV2 (data/mr.txt, first 1 GiB)"
+size_mb = 125
+note = "Marathi word trigram model + lexicon (657k word forms) built by setup/build_lm.py; scores how Marathi a line reads"
+
+[[component]]
+id = "lm_hi_v1"
+kind = "model"
+phase = 6
+status = "installed"
+licence = "CC-0 (built from IndicCorp v2, AI4Bharat)"
+commercial_ok = "yes"
+path = "toolchain/models/lm-hi-v1"
+marker = "meta.json"
+source = "https://huggingface.co/datasets/ai4bharat/IndicCorpV2 (data/hi-1.txt, first 1 GiB)"
+note = "Hindi word trigram model + lexicon, same builder"

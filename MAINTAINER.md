@@ -31,6 +31,20 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
    bump `VERSION` (patch for tuning, minor for new stages/engines).
 5. Rejected: delete the branch. Record what was tried in `knowledge/ERRORS.md` if it taught something.
 
+## Fixtures and scores
+- Every fixture is `evals/fixtures/<id>/audio.* + truth.json` (`trx.truth/1`). Audio and truth stay on this PC
+  (git-ignored). Public test sets are rebuilt by `setup/setup.py install --phase 6` (see `setup/sources.toml`).
+- `trx eval` reports CER, WER and `spk` (speaker accuracy) for fixtures whose truth has ≥ 2 speakers.
+- Current fixtures: the Pappa call (hard Marathi phone call, 2 speakers), FLEURS Marathi and Hindi (10 clean read
+  sentences each). A change must not make any of them worse by more than the noise margin.
+
+## Language models and lexicons
+- `toolchain/models/lm-<lang>-v1` is built by `setup/build_lm.py` from a corpus prefix (IndicCorp v2, CC-0).
+- Used by the cleanup word gate (an edit must not make the line less natural) and by polish (`unknown_words`).
+- KenLM is not used: it has no Windows wheels; the numpy trigram model in `pipeline/lm.py` does the same job here.
+- Tried and rejected (2026-10-22): re-decoding each line on its own to get 5 alternatives and letting the LM choose.
+  The line loses its context, and the alternatives were worse (CER 0.62 vs 0.53).
+
 ## Adding a new ASR engine
 1. Add it to `manifest.toml` (licence must allow commercial use; size; source).
 2. Owner approves the download; `setup/` installs it into `toolchain/models/<id>/` with sha256 in `SOURCE.json`.

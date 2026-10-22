@@ -8,9 +8,13 @@ from ..context import Ctx
 def run(ctx: Ctx, params: dict) -> None:
     g = load_config("thresholds")[params.get("thresholds", "gate")]  # recipe names the thresholds.toml section
     soft = tuple(g.get("soft_flags", []))
+    info = tuple(g.get("info_flags", []))
+
+    def counted(s):  # info flags (e.g. unknown_words) help the reviewer but never change the verdict
+        return [f for f in s["flags"] if not (info and f.startswith(info))]
     total = sum(s["end"] - s["start"] for s in ctx.segments) or 0.0
-    flagged = sum(s["end"] - s["start"] for s in ctx.segments if s["flags"])
-    hard = sum(s["end"] - s["start"] for s in ctx.segments if any(not f.startswith(soft) for f in s["flags"]))
+    flagged = sum(s["end"] - s["start"] for s in ctx.segments if counted(s))
+    hard = sum(s["end"] - s["start"] for s in ctx.segments if any(not f.startswith(soft) for f in counted(s)))
     ratio = flagged / total if total else 0.0
     hard_ratio = hard / total if total else 0.0
     reasons = []

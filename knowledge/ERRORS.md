@@ -126,12 +126,17 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Rule:** loop detection works on characters as well as words.
 
 ## E17 — LLM cleanup changed meaning while passing every gate
-- **Seen (2026-10-16, phase 3 trial):** Gemma 3 4B fixed spelling well (~0.9 s per segment after warm-up), but one
-  suggestion changed a word's meaning and still passed the length/edit-ratio/entity gates.
-- **Fix:** `[llm_cleanup] enabled = false` by default; when enabled, the ASR text stays in `text_asr` and every
-  accepted edit is logged in `work/llm_cleanup.json`.
-- **Rule:** cleanup is enabled only after `trx eval` shows it lowers CER on the fixtures. In `verbatim` style the
-  prompt adds `verbatim_rule` (fix spelling only, keep fillers/repeats/code-switches).
+- **Seen (2026-10-16 and 2026-10-22, Pappa call):** Gemma 3 4B fixed real errors (है→आहे, नहीं→नाही, spelling of an
+  English loanword) but the same suggestions also changed meaning or added garbage that passed all 5 whole-sentence
+  gates: a misheard verb "corrected" into a different verb that was never said, a word rewritten half in Latin
+  letters, का→क्या (a new Hindi form), two words merged into one.
+- **Fix (2026-10-22): a word gate** (`pipeline/stages/cleanup.py`). The suggestion is aligned word by word with what was
+  heard; a word may change only by a small spelling fix (≤ `max_word_edit_ratio` = 25 % of its letters),
+  punctuation, or a listed Hindi→Marathi form (`library/lang_forms/mr.toml`). No word added or removed, no new
+  script, no new Hindi form. Everything else keeps the heard word. Pappa CER: no cleanup 0.5308 → old gates 0.5176
+  (with the meaning changes) → word gate 0.5154 (none of them).
+- **Check:** `tests/test_core.py::TestCleanupGates`; every word decision is in `work/llm_cleanup.json`.
+- **Rule:** an LLM may only correct the form of a word that was heard, never choose a different word.
 
 ## E18 — The same file gave different transcripts on different runs
 - **Seen (2026-10-16, phase 2 eval):** turbo on the Pappa call scored CER 0.720 in one run and 0.793 in the next
@@ -142,3 +147,28 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Check:** run `trx eval` twice; the numbers must match exactly.
 - **Rule:** every stochastic step is seeded from `[runtime].seed`; an eval result that cannot be reproduced is not
   evidence. Numbers measured before this fix (CHANGELOG) are marked "unseeded".
+
+## E19 — Diarization could not separate the two people on a phone call
+- **Seen (2026-10-22, Pappa call, mono narrowband):** sherpa-onnx (pyannote segmentation 3.0 + WeSpeaker ResNet34) put
+  ~all speech under one speaker. Measured as the share of words with the right speaker: 54 % = "everyone is one
+  speaker"; best pyannote-pipeline setting 68 %; forcing 2 speakers still gave 1. The segmentation model never saw a
+  speaker change in telephone-band audio, and the VoxCeleb embeddings barely told the two voices apart (cos 0.90).
+- **Fix:** mode `embed_cluster` (`pipeline/stages/diarize_embed.py`): 3D-Speaker ERes2NetV2 embeddings on 1 s windows
+  (hop 0.25 s) inside VAD speech, cosine k-means, Viterbi smoothing, short turns merged → **94.5 %** (CAM++ 92–94 %,
+  TitaNet-L 91–92 %). Transcript lines are split where the speaker changes (text unchanged).
+- **Limit:** inside ONE speaker the halves can be as dissimilar (cos 0.62–0.75) as two speakers (0.67), so the number
+  of speakers cannot be estimated reliably from 1 s windows. Phone calls are fixed at 2 parties; other recipes
+  estimate and the report says "estimated".
+- **Check:** `trx eval` column `spk` (speaker accuracy; needs a fixture whose truth has ≥ 2 speakers).
+- **Rule:** a diarization change needs a `spk` result, like an ASR change needs CER.
+
+## E20 — Marathi speech decoded as English came out TRANSLATED
+- **Seen (2026-10-22, FLEURS Marathi fixture, meeting recipe):** per-group language ID was limited to "main language
+  vs English". Whisper gives Marathi almost no probability (E10), so after renormalising English won 2 of 9 Marathi
+  groups. Decoding a Marathi group as English made Whisper translate it ("Till 1970, there was a tendency…") or
+  romanise it. CER 0.273 → 0.400.
+- **Fix:** `segment_language()` in `pipeline/stages/lid.py`: candidates are ALL priority languages, and a group becomes
+  English only if P(en) ≥ `[languages] segment_en_min` (0.80) against all of them together.
+- **Check:** `tests/test_core.py::TestSegmentLanguage`; the FLEURS Marathi fixture in `trx eval`.
+- **Rule:** never let a renormalised probability over a reduced candidate set decide a language; a wrong language
+  forced on Whisper is worse than no decision.

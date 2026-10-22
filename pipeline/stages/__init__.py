@@ -43,7 +43,7 @@ IMPLEMENTED: dict = _available()
 
 
 def phase_for(name: str, params: dict) -> int:
-    if name == "diarize" and params.get("mode") == "sherpa_onnx":
+    if name == "diarize" and params.get("mode") in ("sherpa_onnx", "embed_cluster"):
         return 4
     if name == "polish" and params.get("llm_cleanup") is True:
         return 3
@@ -57,6 +57,12 @@ def is_available(name: str, params: dict) -> bool:
         try:
             from . import diarize_sherpa
             return diarize_sherpa.AVAILABLE
+        except ImportError:
+            return False
+    if name == "diarize" and params.get("mode") == "embed_cluster":
+        try:
+            from . import diarize_embed
+            return diarize_embed.AVAILABLE
         except ImportError:
             return False
     return True

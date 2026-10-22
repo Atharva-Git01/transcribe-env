@@ -81,7 +81,7 @@ def run_checks(offline_mode: bool = False, deep: bool = False) -> list[dict]:
             data = load_toml(TRX_HOME / "recipes" / f"{rid}.toml")
             probs = check_recipe(data, rid)
             template = data.get("recognise", {}).get("initial_prompt_file", "")
-            langs = data.get("lid", {}).get("candidates", []) if "{lang}" in template else [None]
+            langs = load_config("defaults")["languages"]["priority"] if "{lang}" in template else [None]
             for lang in langs:
                 rel = template.format(lang=lang) if lang else template
                 if rel and not (TRX_HOME / rel).is_file():

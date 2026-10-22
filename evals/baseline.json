@@ -1,12 +1,27 @@
 {
   "schema": "trx.baseline/1",
-  "env_version": "0.5.0",
+  "env_version": "0.6.0",
   "scores": {
     "pappa_260603_211622|phone_call_mono|faster_whisper_large_v3|mr": {
-      "cer": 0.5308,
-      "wer": 0.8438,
-      "env_version": "0.5.0",
-      "utc": "2026-10-15T23:35:26Z"
+      "cer": 0.5132,
+      "wer": 0.8047,
+      "speaker_acc": 0.9169,
+      "env_version": "0.6.0",
+      "utc": "2026-10-22T13:45:21Z"
+    },
+    "fleurs_hi_test10|meeting_multi_speaker|faster_whisper_large_v3|hi": {
+      "cer": 0.0717,
+      "wer": 0.1985,
+      "speaker_acc": null,
+      "env_version": "0.6.0",
+      "utc": "2026-10-22T13:45:21Z"
+    },
+    "fleurs_mr_test10|meeting_multi_speaker|faster_whisper_large_v3|mr": {
+      "cer": 0.2728,
+      "wer": 0.7198,
+      "speaker_acc": null,
+      "env_version": "0.6.0",
+      "utc": "2026-10-22T13:45:21Z"
     }
   },
   "references": {

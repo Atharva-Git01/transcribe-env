@@ -7,7 +7,7 @@ from ..audio import read_wav
 from ..common import TrxError, load_config
 from ..context import Ctx
 from ..engines.faster_whisper_engine import make
-from ..lid import detect, lid_engine_id, refine
+from ..lid import detect, lid_engine_id
 
 
 def _groups(speech, max_len: float, max_gap: float = 1.0):
@@ -24,9 +24,17 @@ def _groups(speech, max_len: float, max_gap: float = 1.0):
     return groups
 
 
+def segment_language(probs: dict, main: str, priority: list[str], en_min: float) -> str:
+    """One speech group: English only on strong evidence (P(en) >= en_min against every other candidate);
+    otherwise the main language. A wrong "en" makes Whisper TRANSLATE Marathi into English (E20)."""
+    if main != "en":
+        return "en" if probs.get("en", 0.0) >= en_min else main
+    indic = 1.0 - probs.get("en", 1.0)
+    return priority[0] if probs and indic >= en_min else "en"
+
+
 def run(ctx: Ctx, params: dict) -> None:
     rec = ctx.stage_params("recognise")
-    candidates = list(params.get("candidates", ["mr", "hi", "en"]))
     forced = ctx.plan["overrides"].get("lang") or (rec.get("language") if rec.get("language") not in ("auto", "per_segment") else None)
     if params.get("mode") == "forced" and not forced:
         raise TrxError("CONFIG_INVALID", "lid.mode = forced but no language given")
@@ -43,7 +51,17 @@ def run(ctx: Ctx, params: dict) -> None:
         else:
             ctx.language, ctx.language_source = None, "not measured"
 
-    if params.get("per_segment") and not forced:
+    if params.get("per_segment"):
+        # Per speech group only "main language vs English": Marathi and Hindi cannot be told apart reliably on one
+        # short group (E10), and the main language is the confirmed (or measured) one. English groups are decoded
+        # as English, so code-switched speech keeps its English words in Latin script.
+        langs_cfg = load_config("defaults")["languages"]
+        priority = langs_cfg["priority"]
+        main = ctx.language or priority[0]
+        en_min = float(langs_cfg.get("segment_en_min", 0.8))
+        # Whisper spreads Indic speech over mr AND hi (E10), so English must beat ALL candidate languages together
+        # and reach en_min; otherwise the group stays in the main language (a wrong "en" makes Whisper translate).
+        cand = list(dict.fromkeys([main] + [c for c in priority if c != "en"] + ["en"]))
         eng_id = lid_engine_id()
         if not eng_id:
             raise TrxError("MODEL_MISSING", "no installed LID engine (config [languages].lid_engines)")
@@ -55,21 +73,20 @@ def run(ctx: Ctx, params: dict) -> None:
                 audio, _ = read_wav(tr.wav16)
                 for a, b in _groups(tr.speech, max_len):
                     if b - a < 2.0:
-                        lang, probs = ctx.language, {}
+                        lang, probs = main, {}
                     else:
-                        res = detect(eng, audio, [(a, b)], candidates)
-                        ref = refine(eng, audio, [(a, b)], res) if res["top3"] else None  # one group
-                        lang = (ref["decision"] if ref and ref["decision"] else
-                                (res["top3"][0]["lang"] if res["top3"] else ctx.language))
-                        probs = {"acoustic": res["per_window"][0]["probs"] if res["per_window"] else {},
-                                 "text": ref["evidence"] if ref else {}}
+                        res = detect(eng, audio, [(a, b)], cand)
+                        p = res["per_window"][0]["probs"] if res["per_window"] else {}
+                        lang = segment_language(p, main, priority, en_min)
+                        probs = {"acoustic": p}
                     ctx.segment_languages.append({"track": tr.label, "start": a, "end": b, "language": lang,
                                                   "probs": probs})
         finally:
             eng.unload()
-        langs = sorted({g["language"] for g in ctx.segment_languages if g["language"]})
-        ctx.log.add("lid", f"per-segment language for {len(ctx.segment_languages)} speech groups: {langs}",
-                    "Mixed-language audio: each speech group is recognised in its own language.", engine=eng_id)
+        counts = {c: sum(1 for g in ctx.segment_languages if g["language"] == c) for c in (main, "en")}
+        ctx.log.add("lid", f"per-group language ({main} vs English) for {len(ctx.segment_languages)} speech groups: "
+                    f"{counts}", "Code-switched audio: English groups are recognised as English, the rest in the "
+                    "main language (Marathi vs Hindi is never decided per group, E10).", engine=eng_id)
     if not ctx.language:
         ctx.language = load_config("defaults")["languages"]["priority"][0]
         ctx.language_source = "default (no measurement available)"

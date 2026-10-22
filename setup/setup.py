@@ -80,6 +80,21 @@ def _download(url: str, dest: Path, expect: str | None) -> None:
     tmp.replace(dest)
 
 
+def _download_range(url: str, dest: Path, nbytes: int | None, expect: str | None) -> None:
+    """Like _download, but only the first nbytes (HTTP Range) — for corpora that are larger than we need."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    req = urllib.request.Request(url, headers={"Range": f"bytes=0-{nbytes - 1}"} if nbytes else {})
+    print(f"  downloading {url}" + (f" (first {nbytes:,} bytes)" if nbytes else ""))
+    with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as f:
+        shutil.copyfileobj(r, f, 1 << 20)
+    got = sha256(tmp)
+    if expect and got != expect:
+        tmp.unlink()
+        raise SystemExit(f"sha256 mismatch for {dest.name}: {got} != {expect}")
+    tmp.replace(dest)
+
+
 def install(phase: int) -> None:
     for it in [i for i in load() if i["phase"] == phase]:
         if present(it):
@@ -115,6 +130,19 @@ def install(phase: int) -> None:
                 if not src.is_file():
                     raise SystemExit(f"{it['id']}: source {src} not found; see setup/README.md for the alternative")
                 os.link(src, dst)
+        elif kind == "build":
+            # download exact byte ranges (sha256-checked) into a fresh folder, run the builder, drop the raw input
+            work = HOME / "toolchain" / "downloads" / f"{it['id']}-build"
+            work.mkdir(parents=True, exist_ok=True)
+            names = {}
+            for d in it["downloads"]:
+                dest = work / d["as"]
+                _download_range(d["url"], dest, d.get("bytes"), d.get("sha256"))
+                names[d["as"].split(".")[0]] = str(dest)
+            cmd = [str(VPY), "-X", "utf8", "-I"] + [a.format(home=HOME, **names) for a in it["build"]]
+            subprocess.run(cmd, check=True, cwd=HOME)
+            if it.get("delete_downloads", True):
+                shutil.rmtree(work, ignore_errors=True)
         else:
             raise SystemExit(f"unknown kind {kind}")
     write_sources()
@@ -137,7 +165,7 @@ def verify() -> int:
 
 def write_sources() -> None:
     for it in load():
-        if it["kind"] == "venv" or not present(it):
+        if it["kind"] in ("venv", "build") or not present(it):   # builders write their own SOURCE.json
             continue
         dest_dir = HOME / it.get("source_json_dir", Path(it["files"][0]["dest"]).parent.as_posix())
         rec = {"id": it["id"], "licence": it.get("licence"), "source": it.get("url") or it.get("page"),

@@ -1,10 +1,10 @@
 [recipe]
 id = "code_switched"
-version = 2
+version = 4
 description = "Speakers mix Marathi, Hindi and English inside sentences."
 when_to_use = "language.code_switch_risk == high (measured from phase 1)."
 when_not_to_use = "Single-language audio — forcing per-segment language ID there adds errors."
-stages = ["convert", "denoise", "vad", "lid", "recognise", "verify", "polish", "gate", "export"]
+stages = ["convert", "denoise", "vad", "lid", "diarize", "recognise", "verify", "polish", "gate", "export"]
 
 [convert]
 channels = "downmix"
@@ -28,8 +28,18 @@ max_segment_s = 15.0              # shorter windows so each can carry its own la
 
 [lid]
 mode = "auto"
-candidates = ["mr", "hi", "en"]
 per_segment = true                # language decided per VAD segment, never one forced language
+
+[diarize]
+mode = "embed_cluster"            # speaker embeddings on 1 s windows, clustered + smoothed (E19)
+num_speakers = 0                  # 0 = estimate (marked "estimated" in the report)
+max_speakers = 4
+split_cosine = 0.6                # estimate: split a cluster while its halves are less similar than this
+min_speaker_s = 5.0               # estimate: a speaker needs at least this much speech
+window_s = 1.0
+hop_s = 0.25
+switch_penalty = 0.1              # smoothing: cost of changing speaker between neighbouring windows
+min_turn_s = 0.3
 
 [recognise]
 language = "per_segment"

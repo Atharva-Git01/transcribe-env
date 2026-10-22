@@ -2,11 +2,12 @@
 vad stage's parameters, then the fixed fallback ladder (E04) if a track with speech produced no text."""
 from __future__ import annotations
 
+import json
 import zlib
 
 from .. import gpu
 from ..audio import read_wav
-from ..common import TRX_HOME, TrxError, load_config, write_json
+from ..common import TRX_HOME, TrxError, env_version, load_config, write_json
 from ..context import Ctx
 from ..engines.faster_whisper_engine import make
 from ..models import installed
@@ -37,8 +38,13 @@ def _engine_for(table: dict, lang: str) -> tuple[str, list[str]]:
 
 
 def _decode_track(eng, audio, tr, ctx, params, vad, fw, lang, prompt_tpl):
-    word_ts = bool(params.get("word_timestamps", True))
     groups = [g for g in ctx.segment_languages if g["track"] == tr.label]
+    return _decode(eng, audio, tr.speech, groups, params, vad, fw, lang, prompt_tpl)
+
+
+def _decode(eng, audio, speech, groups, params, vad, fw, lang, prompt_tpl):
+    """Decode one stretch of audio. `speech` and `groups` are in this audio's own time (0 = its first sample)."""
+    word_ts = bool(params.get("word_timestamps", True))
     mode = params.get("segmentation", "vad_concat")
     segs = []
     if groups:  # per-segment languages (code-switched): each LID group decoded in its own language
@@ -52,12 +58,12 @@ def _decode_track(eng, audio, tr, ctx, params, vad, fw, lang, prompt_tpl):
     elif mode == "vad_concat":
         # faster-whisper's VAD (same parameters as the vad stage) joins speech into <= 30 s windows: most context.
         # Seeded eval (E14, E18): large-v3 CER 0.531 vs 0.577 with clips; turbo 0.793 vs 0.813.
-        if not tr.speech:
+        if not speech:
             return []
         segs = eng.transcribe(audio, lang, fw, vad, _prompt(prompt_tpl, lang), word_ts)
     elif mode == "clips":
         # the vad stage's regions merged into groups of <= group_max_s, each decoded alone (less context)
-        clips = speech_groups(tr.speech, float(params.get("group_max_s", 20.0)), float(params.get("group_max_gap_s", 0.8)))
+        clips = speech_groups(speech, float(params.get("group_max_s", 20.0)), float(params.get("group_max_gap_s", 0.8)))
         if not clips:
             return []
         segs = eng.transcribe(audio, lang, fw, None, _prompt(prompt_tpl, lang), word_ts,
@@ -123,35 +129,114 @@ def speech_groups(speech, max_len: float, max_gap: float) -> list[tuple[float, f
     return groups
 
 
+def chunk_spans(speech, chunk_s: float) -> list[tuple[float, float | None]]:
+    """Cut a track into spans of about chunk_s seconds, always in the middle of a silence between VAD regions,
+    so no word is ever split between two chunks. chunk_s = 0 -> one span (the whole track)."""
+    if not chunk_s or not speech:
+        return [(0.0, None)]
+    spans, start = [], 0.0
+    for i in range(len(speech) - 1):
+        if speech[i][1] - start >= chunk_s:
+            cut = round((speech[i][1] + speech[i + 1][0]) / 2, 3)
+            spans.append((start, cut))
+            start = cut
+    spans.append((start, None))
+    return spans
+
+
+def _shift(segs: list[dict], offset: float) -> list[dict]:
+    for s in segs:
+        s["start"], s["end"] = round(s["start"] + offset, 3), round(s["end"] + offset, 3)
+        if "split_from" in s:
+            s["split_from"] = [round(x + offset, 3) for x in s["split_from"]]
+        for w in s.get("words") or []:
+            w["start"], w["end"] = round(w["start"] + offset, 3), round(w["end"] + offset, 3)
+    return segs
+
+
+def _chunk_key(**parts) -> str:
+    import hashlib
+    import json
+    return hashlib.sha256(json.dumps(parts, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+
+
 def run(ctx: Ctx, params: dict) -> None:
     lang = ctx.language
     table = params["engine_table_primary"]
     per_segment = bool(ctx.segment_languages)
     eng_id, skipped = _engine_for(table, "mixed" if per_segment else lang)
     fw = dict(params.get("faster_whisper", {}))
+    if params.get("hotwords"):
+        fw["hotwords"] = " ".join(params["hotwords"])
     vad = ctx.stage_params("vad") or None
-    eng = make(eng_id)
-    info = eng.load(gpu.choose_device(), fw)
-    ctx.engines_used.append(info)
-    ctx.log.add("recognise", f"loaded {eng_id} on {info['device']} ({info['compute_type']})",
-                f"Engine for language '{'mixed' if per_segment else lang}' from config/defaults.toml [engines.primary]"
-                + (f"; preferred {skipped} not installed, so the next choice was used." if skipped else "."),
-                skipped_not_installed=skipped, segmentation=params.get("segmentation", "vad_concat"), **info)
+    prompt_tpl = params.get("initial_prompt_file", "")
+    held = {"eng": None, "info": None}
+
+    def engine():  # loaded only when something actually has to be decoded (a resumed run may need nothing)
+        if held["eng"] is None:
+            e = make(eng_id)
+            held["info"] = e.load(gpu.choose_device(), fw)
+            held["eng"] = e
+            ctx.engines_used.append(held["info"])
+            ctx.log.add("recognise", f"loaded {eng_id} on {held['info']['device']} ({held['info']['compute_type']})",
+                        f"Engine for language '{'mixed' if per_segment else lang}' from config/defaults.toml "
+                        "[engines.primary]" + (f"; preferred {skipped} not installed, so the next choice was used."
+                                               if skipped else "."),
+                        skipped_not_installed=skipped, segmentation=params.get("segmentation", "vad_concat"),
+                        **held["info"])
+        return held["eng"]
+
+    chunk_s = float(params.get("chunk_minutes", 0) or 0) * 60.0
+    ckpt_dir = ctx.work / "recognise_chunks"
     ladder = load_config("defaults").get("fallback_ladder", {})
     all_segments = []
     try:
         for tr in ctx.tracks:
             audio, _ = read_wav(tr.wav16)
             speech_sec = sum(e - s for s, e in tr.speech)
-            segs = _decode_track(eng, audio, tr, ctx, params, vad, fw, lang, params.get("initial_prompt_file", ""))
+            groups = [g for g in ctx.segment_languages if g["track"] == tr.label]
+            if not chunk_s:
+                segs = _decode(engine(), audio, tr.speech, groups, params, vad, fw, lang, prompt_tpl)
+            else:
+                segs = []
+                spans = chunk_spans(tr.speech, chunk_s)
+                reused = 0
+                for k, (a, b) in enumerate(spans, 1):
+                    end = b if b is not None else len(audio) / 16000.0
+                    sp = [(max(s0, a) - a, min(e0, end) - a) for s0, e0 in tr.speech if e0 > a and s0 < end]
+                    gr = [dict(g, start=max(g["start"], a) - a, end=min(g["end"], end) - a)
+                          for g in groups if g["end"] > a and g["start"] < end]
+                    key = _chunk_key(engine=eng_id, lang=lang, track=tr.label, span=[a, end], speech=sp, groups=gr,
+                                     params={k2: v for k2, v in params.items() if not k2.startswith("engine_table")},
+                                     fw=fw, vad=vad, env=env_version(), seed=load_config("defaults")["runtime"].get("seed"))
+                    path = ckpt_dir / f"track{tr.index + 1}_chunk{k:04d}.json"
+                    if path.is_file():
+                        data = json.loads(path.read_text(encoding="utf-8"))
+                        if data.get("key") == key:
+                            segs += data["segments"]
+                            reused += 1
+                            held["info"] = held["info"] or data.get("engine_info")
+                            continue
+                    part = _decode(engine(), audio[int(a * 16000):int(end * 16000)], sp, gr, params, vad, fw, lang,
+                                   prompt_tpl)
+                    part = _shift(part, a)
+                    write_json(path, {"key": key, "span": [a, end], "engine_info": held["info"], "segments": part})
+                    segs += part
+                    ctx.log.add("recognise", f"track {tr.label}: chunk {k}/{len(spans)} saved "
+                                f"({a / 60:.1f}-{end / 60:.1f} min, {len(part)} segments)",
+                                "Long recordings are recognised in chunks cut at silences; each finished chunk is "
+                                "saved so an interrupted run continues from the next one.")
+                if reused:
+                    ctx.log.add("recognise", f"track {tr.label}: reused {reused} of {len(spans)} saved chunk(s)",
+                                "These chunks were finished before the interruption and match the plan exactly.")
             step = "primary"
             if not any(s["text"] for s in segs) and speech_sec >= float(ladder.get("min_speech_sec", 1.0)):
                 # E04 fallback ladder: relax silence checks -> no VAD -> (other engine is tried below)
                 relaxed = dict(fw, no_speech_threshold=float(ladder.get("relaxed_no_speech_threshold", 0.9)),
                                log_prob_threshold=float(ladder.get("relaxed_log_prob_threshold", -2.0)))
                 for step, use_vad in (("relaxed_thresholds", vad), ("vad_off", None)):
-                    segs = eng.transcribe(audio, lang, relaxed, use_vad, _prompt(params.get("initial_prompt_file", ""), lang),
-                                          bool(params.get("word_timestamps", True)))
+                    segs = engine().transcribe(audio, lang, relaxed, use_vad, _prompt(prompt_tpl, lang),
+                                               bool(params.get("word_timestamps", True)))
                     for s in segs:
                         s["language"] = lang
                     ctx.log.add("recognise", f"track {tr.label}: fallback ladder step '{step}' -> {len(segs)} segments",
@@ -164,7 +249,11 @@ def run(ctx: Ctx, params: dict) -> None:
             ctx.log.add("recognise", f"track {tr.label}: {len(segs)} segments", "Recognition finished for this track.",
                         speech_sec=round(speech_sec, 2), ladder_step=step)
     finally:
-        eng.unload()
+        if held["eng"] is not None:
+            held["eng"].unload()
+    if held["eng"] is None and held["info"]:  # everything came from saved chunks
+        ctx.engines_used.append(dict(held["info"], note="from saved chunks"))
+    info = held["info"] or {"engine": eng_id}
     all_segments.sort(key=lambda s: (s["start"], s["track"]))
     for i, s in enumerate(all_segments, 1):
         s["id"] = i

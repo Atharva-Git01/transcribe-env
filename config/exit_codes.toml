@@ -31,6 +31,11 @@ code = 13
 meaning = "The audio is shorter than the minimum length in config/thresholds.toml [probe].min_duration_sec."
 next = "Nothing to transcribe. Report it to the owner; do not retry."
 
+[LANGUAGE_CONFIRM_NEEDED]
+code = 14
+meaning = "The audio was measured and its language guessed, but nobody confirmed it (owner rule: always ask)."
+next = "Ask the owner: 'The audio sounds like <detected_name>. Is that right?' If yes, rerun the same command with --lang <detected>. If they name another language, rerun with --lang <that code> (mr, hi or en)."
+
 [STAGE_NOT_INSTALLED]
 code = 20
 meaning = "A pipeline stage needed by the selected recipe is not installed yet (it belongs to a later phase or tier)."

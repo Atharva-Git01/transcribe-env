@@ -4,11 +4,13 @@ Runs on the 48 kHz track, then re-derives the 16 kHz track. Never runs on near-s
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 import subprocess
 
 from ..audio import ffmpeg, read_wav, rms_dbfs
-from ..common import TRX_HOME
+from ..common import TRX_HOME, env_version, sha256_file, write_json
 from ..context import Ctx
 
 DEEP_FILTER = TRX_HOME / "toolchain" / "bin" / "deep-filter" / "deep-filter.exe"
@@ -31,9 +33,20 @@ def run(ctx: Ctx, params: dict) -> None:
     atten = params.get("attenuation_limit_db", 18.0)
     skip_below = float(params.get("skip_below_dbfs", -42.0))
     for tr in ctx.tracks:
+        dn48 = ctx.work / f"track{tr.index + 1}_48k_dn.wav"
+        wav16 = ctx.work / f"track{tr.index + 1}_16k_dn.wav"
+        memo = ctx.work / f"denoise_track{tr.index + 1}.json"
+        key = hashlib.sha256(json.dumps({"in": sha256_file(tr.wav48), "params": params, "env": env_version()},
+                                        sort_keys=True).encode()).hexdigest()
+        if memo.is_file() and dn48.is_file() and wav16.is_file():   # resumed run: same input, same settings
+            m = json.loads(memo.read_text(encoding="utf-8"))
+            if m.get("key") == key and m.get("out16") == sha256_file(wav16):
+                tr.wav16 = wav16
+                ctx.log.add("denoise", f"track {tr.label}: reused saved result ({m['method']})",
+                            "Same input and settings as before the interruption.")
+                continue
         audio, _ = read_wav(tr.wav48)
         level = rms_dbfs(audio)
-        dn48 = ctx.work / f"track{tr.index + 1}_48k_dn.wav"
         used, note = "copy_through", ""
         if level < skip_below:
             note = f"track level {level:.1f} dBFS below {skip_below} dBFS: left untouched"
@@ -60,6 +73,7 @@ def run(ctx: Ctx, params: dict) -> None:
         tr.wav16 = ctx.work / f"track{tr.index + 1}_16k_dn.wav"
         ffmpeg(["-i", str(dn48), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tr.wav16)])
         ctx.custody.add(tr.wav16, "derived", "denoise")
+        write_json(memo, {"key": key, "method": used, "out16": sha256_file(tr.wav16)})
         ctx.log.add("denoise", f"track {tr.label}: {used}",
                     "Noise is removed before recognition, limited so soft speech is not erased.",
                     method=used, attenuation_limit_db=atten, input_level_dbfs=round(level, 1), note=note)

@@ -73,6 +73,7 @@ class FasterWhisperEngine:
             repetition_penalty=float(fw.get("repetition_penalty", 1.0)),
             no_repeat_ngram_size=int(fw.get("no_repeat_ngram_size", 0)),
             initial_prompt=initial_prompt,
+            hotwords=fw.get("hotwords") or None,
             word_timestamps=word_timestamps,
             hallucination_silence_threshold=(float(fw["hallucination_silence_threshold"])
                                              if word_timestamps and fw.get("hallucination_silence_threshold") else None),

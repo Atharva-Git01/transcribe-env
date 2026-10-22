@@ -1,10 +1,10 @@
 [recipe]
 id = "clean_studio"
-version = 2
+version = 4
 description = "Clean, wide-band, unclipped recording (studio, dictation, good microphone)."
 when_to_use = "SNR >= 30 dB, clipping < 0.05 %, wideband or fullband."
 when_not_to_use = "Anything noisy or telephone-band."
-stages = ["convert", "vad", "lid", "recognise", "verify", "polish", "gate", "export"]   # no denoise on purpose
+stages = ["convert", "vad", "lid", "diarize", "recognise", "verify", "polish", "gate", "export"]   # no denoise on purpose
 
 [convert]
 channels = "downmix"
@@ -22,8 +22,18 @@ max_segment_s = 28.0
 
 [lid]
 mode = "auto"
-candidates = ["mr", "hi", "en"]
 per_segment = false
+
+[diarize]
+mode = "embed_cluster"            # speaker embeddings on 1 s windows, clustered + smoothed (E19)
+num_speakers = 0                  # 0 = estimate (marked "estimated" in the report)
+max_speakers = 4
+split_cosine = 0.6                # estimate: split a cluster while its halves are less similar than this
+min_speaker_s = 5.0               # estimate: a speaker needs at least this much speech
+window_s = 1.0
+hop_s = 0.25
+switch_penalty = 0.1              # smoothing: cost of changing speaker between neighbouring windows
+min_turn_s = 0.3
 
 [recognise]
 language = "auto"

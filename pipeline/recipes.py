@@ -13,9 +13,10 @@ STAGE_KEYS = {
     "separate": {"required", "engine"},   # stage not implemented yet (Demucs needs torch); skipped while required=false
     "denoise": {"engine", "fallback", "skip_below_dbfs", "attenuation_limit_db"},
     "vad": {"engine", "threshold", "min_speech_ms", "min_silence_ms", "speech_pad_ms", "max_segment_s"},
-    "lid": {"mode", "candidates", "per_segment"},
-    "diarize": {"required", "mode", "num_speakers", "cluster_threshold", "min_turn_s", "crosstalk_suppression_db"},
-    "recognise": {"language", "initial_prompt_file", "word_timestamps", "segmentation", "split_max_s", "group_max_s",
+    "lid": {"mode", "per_segment"},
+    "diarize": {"required", "mode", "num_speakers", "max_speakers", "split_cosine", "min_speaker_s", "window_s",
+                "hop_s", "switch_penalty", "min_turn_s", "cluster_threshold", "crosstalk_suppression_db"},
+    "recognise": {"language", "initial_prompt_file", "word_timestamps", "segmentation", "split_max_s", "chunk_minutes", "group_max_s",
                   "group_max_gap_s"},
     "recognise.faster_whisper": {"compute_type_gpu", "compute_type_cpu", "beam_size", "best_of", "patience",
                                  "temperature", "compression_ratio_threshold", "log_prob_threshold",
@@ -110,6 +111,8 @@ def build_plan(run_id: str, selection: dict, overrides: dict) -> dict:
                 params["engine_table_primary"] = {k: overrides["engine"] for k in params["engine_table_primary"]}
             if overrides.get("lang"):
                 params["language"] = overrides["lang"]
+            if overrides.get("hotwords"):
+                params["hotwords"] = list(overrides["hotwords"])
         if name == "polish":
             params["vocabulary_enabled"] = defaults["vocabulary"]["enabled"]
             params["llm_cleanup_enabled"] = defaults["llm_cleanup"]["enabled"]

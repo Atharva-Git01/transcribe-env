@@ -5,6 +5,7 @@ Every step is logged in decisions.json and every file is hashed into custody.jso
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -12,7 +13,7 @@ import subprocess
 from pathlib import Path
 
 from .common import (RUNS_DIR, TrxError, env_version, load_config, local_stamp, safe_case_name, sha256_file,
-                     write_json)
+                     utc_now, write_json)
 from .context import Ctx
 from .guards import offline
 from .recipes import build_plan
@@ -106,9 +107,90 @@ def _write_report(run_dir: Path, run_id: str, verdict: str, reasons: list, exit_
         custody.add(run_dir / "report.json", "record", "report")
 
 
+class RunLock:
+    """Held for as long as a run executes. The OS releases it when the process ends (also on a crash or power cut),
+    so a run folder with state 'running' and a free lock is an interrupted run that can be resumed."""
+
+    def __init__(self, run_dir: Path):
+        self.path = run_dir / "work" / ".lock"
+        self.fh = None
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fh = open(self.path, "a+")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            fh.close()
+            return False
+        self.fh = fh
+        return True
+
+    def release(self) -> None:
+        if self.fh:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    self.fh.seek(0)
+                    msvcrt.locking(self.fh.fileno(), msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+            self.fh.close()
+            self.fh = None
+
+
+def _state_path(run_dir: Path) -> Path:
+    return run_dir / "work" / "run_state.json"
+
+
+def _write_state(run_dir: Path, **kv) -> None:
+    p = _state_path(run_dir)
+    data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    data.update(kv)
+    write_json(p, data)
+
+
+def find_unfinished(input_path: str, overrides: dict, runs_dir: Path = RUNS_DIR) -> Path | None:
+    """An interrupted run of the same file with the same options (language: the run's own, unless one is given)."""
+    src = Path(input_path).expanduser()
+    if not src.is_file():
+        return None
+    sha = None
+    for st in sorted(runs_dir.glob("*/work/run_state.json"), reverse=True):
+        try:
+            data = json.loads(st.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if data.get("state") != "running":
+            continue
+        sha = sha or sha256_file(src)
+        if data.get("input_sha256") != sha:
+            continue
+        theirs, mine = dict(data.get("overrides", {})), dict(overrides)
+        if "lang" not in mine:
+            theirs.pop("lang", None)
+        if theirs != mine:
+            continue
+        run_dir = st.parent.parent
+        if not (run_dir / "plan.json").is_file():   # stopped before planning: nothing to resume, start afresh
+            continue
+        lock = RunLock(run_dir)
+        if lock.acquire():   # nobody holds it: the process that ran it is gone
+            lock.release()
+            return run_dir
+    return None
+
+
 def transcribe(input_path: str, forced_recipe: str | None = None, style: str | None = None,
                lang: str | None = None, case: str | None = None, engine: str | None = None,
-               runs_dir: Path = RUNS_DIR) -> tuple[str, dict]:
+               runs_dir: Path = RUNS_DIR, lang_how: str | None = None, engine_how: str | None = None,
+               hotwords: list[str] | None = None) -> tuple[str, dict]:
     pre = preflight()
     if _URL.match(str(input_path)):
         raise TrxError("INPUT_UNREADABLE", "URLs are not allowed; give a local file path")
@@ -123,11 +205,17 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
     for sub in ("input", "work", "out"):
         (run_dir / sub).mkdir(parents=True, exist_ok=False)
     (run_dir / ".gitignore").write_text(RUN_GITIGNORE, encoding="utf-8")
+    lock = RunLock(run_dir)
+    lock.acquire()
     log = Decisions(run_dir)
     log.add("preflight", "checked offline guard and disk", "A run starts only when it is provably offline "
             "and has disk space.", **pre)
 
     original_hash = sha256_file(src)
+    overrides = {k: v for k, v in {"recipe": forced_recipe, "style": style, "lang": lang, "engine": engine,
+                                   "hotwords": hotwords}.items() if v}
+    _write_state(run_dir, state="running", input_sha256=original_hash, overrides=overrides, started_utc=utc_now(),
+                 env_version=env_version())
     custody = Custody(run_dir, run_id, src.resolve(), original_hash, src.stat().st_size)
     copy = run_dir / "input" / src.name
     shutil.copy2(src, copy)
@@ -138,15 +226,29 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
     log.add("ingest", "copied the input read-only and verified its sha256",
             "The original is never touched; all work happens on a verified copy.",
             original=str(src.resolve()), sha256=original_hash)
+    if lang_how:
+        log.add("language", f"language {lang or 'auto'}: {lang_how}",
+                "Owner rule: the measured language is shown and confirmed before transcribing (pipeline/langcheck.py).")
+    if engine_how:
+        log.add("engine", f"engine override {engine}: {engine_how}", "Chosen by the operator for this file only.")
+    if hotwords:
+        log.add("hotwords", f"{len(hotwords)} case term(s) given to the recogniser",
+                "Names/places of this case help the engine spell them; they never add words that were not said.",
+                terms=hotwords)
 
     plan = passport = None
-    run_metrics: dict = {}
-    overrides = {k: v for k, v in {"recipe": forced_recipe, "style": style, "lang": lang, "engine": engine}.items() if v}
     try:
-        passport = probe(copy)
+        from .langcheck import cache_path, cached_passport
+        passport = cached_passport(original_hash)
+        if passport:  # measured during the language check on a verified copy with the same sha256
+            cache_path(original_hash).unlink(missing_ok=True)
+            how = "reused the measurement from the language check (verified copy, same sha256)"
+        else:
+            passport = probe(copy)
+            how = "measured the audio"
         _validated_write(run_dir / "passport.json", passport, "passport")
         custody.add(run_dir / "passport.json", "record", "probe")
-        log.add("probe", "measured the audio", "Recipe choice is based on measurements, not guesses.",
+        log.add("probe", how, "Recipe choice is based on measurements, not guesses.",
                 layout=passport["channels"]["layout_class"], band=passport["bandwidth"]["class"],
                 snr_db=passport["noise"]["snr_db_estimate"], warnings=passport["warnings"])
 
@@ -158,7 +260,51 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
         custody.add(run_dir / "plan.json", "record", "plan")
         log.add("plan", "wrote plan.json", "plan.json is the only source of parameters for every stage.",
                 stages=[s["name"] for s in plan["stages"]])
+    except Exception as e:  # noqa: BLE001
+        return _finish(run_dir, run_id, lock, log, custody, plan, passport, *_failure(e, run_dir, log), {})
+    return _execute(run_dir, run_id, lock, log, custody, plan, passport, copy)
 
+
+def resume(run_dir: Path) -> tuple[str, dict]:
+    """Continue an interrupted run in its own folder with its own plan.json (never re-planned). Stages re-run from the
+    start (they are deterministic and seeded); recognition skips every chunk already saved in work/recognise_chunks/."""
+    pre = preflight()
+    lock = RunLock(run_dir)
+    if not lock.acquire():
+        raise TrxError("USAGE", f"run {run_dir.name} is still running in another window")
+    run_id = run_dir.name
+    log = Decisions.load(run_dir)
+    custody = Custody.load(run_dir)
+    plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
+    passport = json.loads((run_dir / "passport.json").read_text(encoding="utf-8"))
+    for st in plan["stages"]:
+        if st["status"] in ("done", "skipped"):
+            st["status"] = "pending"
+    copy = next(p for p in (run_dir / "input").iterdir() if p.is_file())
+    if sha256_file(copy) != custody.data["original"]["sha256"]:
+        lock.release()
+        raise TrxError("INTERNAL_ERROR", "the run's input copy no longer matches the original sha256")
+    _write_state(run_dir, state="running", resumed_utc=utc_now())
+    log.add("resume", "resumed an interrupted run", "The previous process stopped before finishing; saved work "
+            "(denoising, diarization, recognition chunks) is reused, everything else is redone exactly as planned.", **pre)
+    return _execute(run_dir, run_id, lock, log, custody, plan, passport, copy)
+
+
+def _failure(e: Exception, run_dir: Path, log: Decisions) -> tuple[str, str, list]:
+    if isinstance(e, offline.NetworkBlocked):
+        return "NETWORK_BLOCKED", "FAIL", [str(e)]
+    if isinstance(e, TrxError):
+        log.add("run", "failed", e.detail or e.name)
+        return e.name, "FAIL", [f"{e.name}: {e.detail}"]
+    import traceback
+    (run_dir / "work" / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
+    log.add("run", "crashed", f"{type(e).__name__}: {e}", traceback="work/traceback.txt")
+    return "INTERNAL_ERROR", "FAIL", [f"{type(e).__name__}: {e}"]
+
+
+def _execute(run_dir, run_id, lock, log, custody, plan, passport, copy) -> tuple[str, dict]:
+    run_metrics: dict = {}
+    try:
         ctx = Ctx(run_dir=run_dir, input_file=copy, passport=passport, plan=plan, log=log, custody=custody)
         exit_name, reasons = "OK", []
         for st in plan["stages"]:
@@ -183,21 +329,18 @@ def transcribe(input_path: str, forced_recipe: str | None = None, style: str | N
         else:
             verdict = "FAIL"
         run_metrics.update(ctx.metrics, language=ctx.language, engines=[e["engine"] for e in ctx.engines_used])
-    except offline.NetworkBlocked as e:
-        exit_name, verdict, reasons = "NETWORK_BLOCKED", "FAIL", [str(e)]
-    except TrxError as e:
-        exit_name, verdict, reasons = e.name, "FAIL", [f"{e.name}: {e.detail}"]
-        log.add("run", "failed", e.detail or e.name)
     except Exception as e:  # noqa: BLE001 — never lose the run record on an unexpected error
-        import traceback
-        exit_name, verdict, reasons = "INTERNAL_ERROR", "FAIL", [f"{type(e).__name__}: {e}"]
-        (run_dir / "work" / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
-        log.add("run", "crashed", f"{type(e).__name__}: {e}", traceback="work/traceback.txt")
+        exit_name, verdict, reasons = _failure(e, run_dir, log)
+    return _finish(run_dir, run_id, lock, log, custody, plan, passport, exit_name, verdict, reasons, run_metrics)
 
+
+def _finish(run_dir, run_id, lock, log, custody, plan, passport, exit_name, verdict, reasons, run_metrics):
     _write_report(run_dir, run_id, verdict, reasons, exit_name, plan, passport, custody, run_metrics)
     errors = validate(log.items, "decisions")
     if errors:
         exit_name = "SCHEMA_INVALID"
+    _write_state(run_dir, state="finished", finished_utc=utc_now(), exit=exit_name, verdict=verdict)
+    lock.release()
     git_state = _git_commit(run_dir, f"trx {env_version()}: {verdict} ({exit_name})")
     return exit_name, {"run_id": run_id, "run_dir": str(run_dir), "verdict": verdict,
                        "recipe": (plan or {}).get("recipe", {}).get("id"), "reasons": reasons, "git": git_state}

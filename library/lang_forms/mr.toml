@@ -1,0 +1,16 @@
+# Hindi word forms that Whisper writes for Marathi speech (E10: Whisper drifts to Hindi), and the Marathi form
+# each one stands for. Read by polish (flag `hindi_forms_in_marathi`) and by the LLM cleanup word gate
+# (pipeline/stages/cleanup.py): a cleanup edit may turn a Hindi form into its Marathi form, never the reverse.
+# Add a pair only when the Marathi form is the ONLY sensible reading of the Hindi form in Marathi speech.
+
+hindi_forms = ["नहीं", "क्या", "मैं", "हैं", "है", "हूँ", "कहाँ", "में"]
+
+form_map = [
+  ["है", "आहे"],
+  ["हैं", "आहेत"],
+  ["नहीं", "नाही"],
+  ["मैं", "मी"],
+  ["में", "मी"],
+  ["क्या", "काय"],
+  ["कहाँ", "कुठे"],
+]

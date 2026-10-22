@@ -10,8 +10,14 @@ from ..context import Ctx
 FILLERS = {"अं", "हं", "अम्", "उम्", "umm", "um", "uh", "hmm", "हम्म"}
 
 
+def _counted(flags: list[str]) -> list[str]:
+    """Flags that make a line [review]; info flags (e.g. unknown_words) are listed in review_list.md only."""
+    info = tuple(load_config("thresholds")["gate"].get("info_flags", []))
+    return [f for f in flags if not (info and f.startswith(info))]
+
+
 def _line_text(s: dict, review_tag: str) -> str:
-    return s["text"] + (f" {review_tag}" if s["flags"] else "")
+    return s["text"] + (f" {review_tag}" if _counted(s["flags"]) else "")
 
 
 def _readable(text: str) -> str:
@@ -33,7 +39,8 @@ def run(ctx: Ctx, params: dict) -> None:
         f"Duration: {ctx.passport['container']['duration_sec']} s · Language: {ctx.language} ({ctx.language_source})",
         f"Recipe: {ctx.plan['recipe']['id']} v{ctx.plan['recipe']['version']} · Engine: {engines} · Style: {style}",
         f"Verdict: {ctx.verdict} · Environment {env_version()}",
-        "Lines marked [review] are uncertain; see review_list.md. Speaker SPK? = not determined.",
+        "Lines marked [review] are uncertain; review_list.md lists them and also words the lexicon does not know. "
+        "Speakers: SPK1, SPK2 … (by voice), SPK? = not determined.",
         "",
     ]
     written = {}

@@ -24,6 +24,7 @@ min_avg_logprob = -1.0
 max_no_speech_prob = 0.60
 max_compression_ratio = 2.4
 omission_min_speech_sec = 1.5       # VAD speech this long with no text = omission flag
+lexicon_min_count = 3               # a word seen fewer times in the language's corpus (~60-80 M words) is "unknown"
 
 [gate]                              # provisional until there are more fixtures (QUESTIONS.md Q10)
 review_if_flagged_ratio_above = 0.05   # ANY flag on more than 5 % of transcribed time -> REVIEW
@@ -31,8 +32,10 @@ fail_if_flagged_ratio_above = 0.40     # HARD flags (not listed below) on more t
 # Soft flags mark lines a reviewer should check, but the text is a real attempt at the speech (wrong word forms,
 # speaker boundaries, channel bleed). They can make a run REVIEW, never FAIL. Matched by flag-name prefix.
 soft_flags = ["hindi_forms_in_marathi", "speaker_change_inside_segment", "crosstalk"]
+# Info flags are shown in review_list.md to help the reviewer but never change the verdict.
+info_flags = ["unknown_words"]
 fail_if_no_text = true
 
-[llm_cleanup]                       # the 5 rejection gates (from FMS, kept as-is)
-max_edit_ratio = 0.40
-min_length_ratio = 0.50
+[llm_cleanup]                       # gates for Gemma suggestions (pipeline/stages/cleanup.py, E17)
+min_length_ratio = 0.50             # whole suggestion: shorter than half the heard text = over-deletion -> rejected
+max_word_edit_ratio = 0.25          # word gate: a word may change at most 25 % of its letters (spelling fixes only)

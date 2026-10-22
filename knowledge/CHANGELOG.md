@@ -3,6 +3,44 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.6.0 — 2026-10-22 (owner decisions implemented)
+**Eval (seeded; baseline saved):**
+
+| Fixture | CER 0.5.0 → 0.6.0 | WER | Speakers right | Verdict |
+|---|---|---|---|---|
+| Pappa call (mr, phone, 2 speakers) | 0.5308 → **0.5132** | 0.8438 → 0.8047 | 0.917 (was: none) | REVIEW |
+| FLEURS mr (10 clean sentences, new) | — → **0.2728** | 0.7198 | — | REVIEW |
+| FLEURS hi (10 clean sentences, new) | — → **0.0717** | 0.1985 | — | PASS |
+
+Owner decisions (QUESTIONS.md)
+- **Models moved from the D: USB stick to C:.** The pip cache (15 GB) was purged first, and sha256 was re-verified after the copy. Runs got ~70 s faster.
+- **Language is confirmed before transcribing.**
+  - A person at a terminal is asked directly.
+  - Other operators get exit 14 `LANGUAGE_CONFIRM_NEEDED` and rerun with `--lang`.
+  - `--lang auto` skips the question.
+- **New options:** `--fast` uses turbo; `--hotwords FILE` passes the case's names and places to the recogniser.
+- **Diarization on every file (E19).**
+  - The new mode `embed_cluster` uses ERes2NetV2 embeddings on 1 s windows, with k-means and Viterbi smoothing: 94.5 % of words on the right speaker in the experiment, 91.7 % in the pipeline.
+  - Phone calls are fixed at 2 parties; other recordings estimate the speaker count.
+  - Transcript lines are split where the speaker changes.
+- **Long files:** 10-minute recognition chunks are cut at silences and saved one by one.
+  - Running the same command again resumes an interrupted run. A file lock tells "interrupted" from "still running".
+  - Diarization results are reused on resume.
+- **Gemma cleanup is ON (E17).**
+  - A word gate keeps only spelling, punctuation and Hindi→Marathi form fixes of the words that were heard.
+  - A Marathi/Hindi language model must agree with each kept edit.
+  - Cleanup off → on: Pappa 0.5308→0.5132, FLEURS mr 0.2856→0.2728, FLEURS hi 0.0827→0.0717.
+- **Language models and lexicons for mr and hi.**
+  - Built from IndicCorp v2 (CC-0; first 1 GiB each) into a numpy trigram model of 125 MB each. KenLM was not used because it has no Windows build.
+  - Polish lists `unknown_words` for the reviewer. These are info only and never change the verdict. Unknown-word rate: ASR 12–34 % vs human transcripts 1–11 %.
+- **Fixtures:** FLEURS Marathi and Hindi (CC-BY-4.0) were added. `trx eval` gained the `spk` column.
+
+Fixed while measuring
+- **E20:** per-group language ID could pick English for Marathi speech, and Whisper then translated it. English now needs P ≥ 0.80 against all other languages together.
+- **Per-group language ID** chooses only between the main language and English, and still runs when the language is confirmed.
+- **Unread recipe key removed:** `lid.candidates` (E05).
+- **Tried and rejected:** re-decoding each line alone to get 5 alternatives for the language model to choose from. CER got worse (0.53 → 0.58–0.62).
+
 ## 0.5.0 — 2026-10-16 (overnight build: phases 1–5)
 **Eval (fixture pappa_260603_211622, Marathi phone call, seeded):** large-v3 CER **0.531** / WER 0.844, verdict
 REVIEW (FMS re-scored with the same metric: 0.745; it reported 0.7225 under its own normalisation). Turbo (fallback when D: is unplugged) CER 0.793. Baseline saved in `evals/baseline.json`.

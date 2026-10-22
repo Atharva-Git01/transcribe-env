@@ -2,7 +2,8 @@
 
 mode = "channel": true-stereo tracks are already SPK1 / SPK2 (convert). Crosstalk check happens after recognition
                   in polish-time via track energy comparison (see recognise flags).
-mode = "sherpa_onnx": phase 4 (speaker turns on a single track).
+mode = "embed_cluster": speaker embeddings on sliding windows, clustered + smoothed (default, E19).
+mode = "sherpa_onnx": pyannote segmentation + clustering (kept for comparison; weaker on phone audio).
 mode = "none": speaker stays SPK? (not determined).
 """
 from __future__ import annotations
@@ -22,6 +23,12 @@ def run(ctx: Ctx, params: dict) -> None:
                     labels=[t.label for t in ctx.tracks],
                     crosstalk_suppression_db=params.get("crosstalk_suppression_db"))
         ctx.metrics["diarization"] = "channel"
+        return
+    if mode == "embed_cluster":
+        if len(ctx.tracks) > 1:
+            raise TrxError("CONFIG_INVALID", "embed_cluster diarizes one track; true stereo uses mode = channel")
+        from . import diarize_embed
+        diarize_embed.run(ctx, params)
         return
     if mode == "sherpa_onnx":
         from . import diarize_sherpa

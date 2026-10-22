@@ -1,0 +1,63 @@
+{
+  "schema": "trx.eval/1",
+  "env_version": "0.5.0",
+  "utc": "2026-10-22T13:02:52Z",
+  "overrides": {
+    "engine": null,
+    "recipe": null,
+    "lang": null
+  },
+  "rows": [
+    {
+      "fixture": "fleurs_hi_test10",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "meeting_multi_speaker",
+      "engines": [
+        "faster_whisper_large_v3"
+      ],
+      "language": "hi",
+      "cer": 0.0735,
+      "wer": 0.2022,
+      "seconds": 453.1,
+      "run_id": "eval_fleurs_hi_test10-20261022-181320",
+      "flagged_time_ratio": 0.0575,
+      "speaker_acc": null,
+      "speakers_found": 5
+    },
+    {
+      "fixture": "fleurs_mr_test10",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "meeting_multi_speaker",
+      "engines": [
+        "faster_whisper_large_v3"
+      ],
+      "language": "mr",
+      "cer": 0.2728,
+      "wer": 0.7198,
+      "seconds": 421.5,
+      "run_id": "eval_fleurs_mr_test10-20261022-182053",
+      "flagged_time_ratio": 0.272,
+      "speaker_acc": null,
+      "speakers_found": 3
+    },
+    {
+      "fixture": "pappa_260603_211622",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "phone_call_mono",
+      "engines": [
+        "faster_whisper_large_v3"
+      ],
+      "language": "mr",
+      "cer": 0.5154,
+      "wer": 0.8047,
+      "seconds": 297.4,
+      "run_id": "eval_pappa_260603_211622-20261022-182754",
+      "flagged_time_ratio": 0.3856,
+      "speaker_acc": 0.9169,
+      "speakers_found": 2
+    }
+  ]
+}

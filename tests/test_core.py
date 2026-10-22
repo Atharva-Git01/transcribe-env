@@ -114,6 +114,17 @@ class TestSegmentation(unittest.TestCase):
         self.assertTrue(all(p["end"] - p["start"] <= 8.0 for p in parts))
         self.assertTrue(parts[0]["text"].endswith("w4."))                          # cut at the sentence end
 
+    def test_chunk_spans_cut_in_silence(self):
+        from pipeline.stages.recognise import chunk_spans
+        speech = [(0, 100), (110, 700), (705, 1300), (1310, 1320)]
+        self.assertEqual(chunk_spans(speech, 600), [(0.0, 702.5), (702.5, None)])   # cut mid-silence 700..705
+        self.assertEqual(chunk_spans(speech, 0), [(0.0, None)])                      # chunking off
+
+    def test_shift_moves_words_too(self):
+        from pipeline.stages.recognise import _shift
+        segs = _shift([{"start": 1.0, "end": 2.0, "words": [{"start": 1.0, "end": 1.5}]}], 600.0)
+        self.assertEqual((segs[0]["start"], segs[0]["words"][0]["end"]), (601.0, 601.5))
+
     def test_engine_choices(self):
         from pipeline.stages.recognise import engine_choices
         table = {"mr": ["large", "turbo"], "en": "turbo", "unknown": "medium"}
@@ -122,14 +133,47 @@ class TestSegmentation(unittest.TestCase):
         self.assertEqual(engine_choices(table, "hi"), ["medium"])   # falls back to "unknown"
 
 
+class TestSpeakerSplit(unittest.TestCase):
+    def test_split_at_speaker_change_keeps_text(self):
+        from pipeline.stages.polish import split_by_turns
+        words = [{"start": float(i), "end": i + 1.0, "word": f" w{i}"} for i in range(4)]
+        seg = {"start": 0.0, "end": 4.0, "text": "w0 w1 w2 w3", "words": words}
+        turns = [{"start": 0.0, "end": 2.0, "speaker": "SPK1"}, {"start": 2.0, "end": 4.0, "speaker": "SPK2"}]
+        parts = split_by_turns([seg], turns)
+        self.assertEqual([p["text"] for p in parts], ["w0 w1", "w2 w3"])
+        self.assertEqual(" ".join(p["text"] for p in parts), seg["text"])
+        self.assertEqual(split_by_turns([seg], [])[0]["text"], seg["text"])   # no diarization -> unchanged
+
+
 class TestCleanupGates(unittest.TestCase):
-    def test_gates(self):
+    def test_whole_suggestion_gates(self):
         from pipeline.stages.cleanup import gates
-        self.assertTrue(gates("कलत नाहि मी तयार आहें", "कळत नाही मी तयार आहे", 0.4, 0.5)[0])
-        self.assertFalse(gates("मी उद्या येतो", "Here is the corrected text: मी उद्या येतो", 0.4, 0.5)[0])
-        self.assertFalse(gates("मी उद्या येतो", "", 0.4, 0.5)[0])
-        self.assertFalse(gates("मी उद्या 5 वाजता office ला येतो", "मी उद्या येतो", 0.4, 0.5)[0])
-        self.assertFalse(gates("मी 5 वाजता येतो", "मी 6 वाजता येतो", 0.4, 0.5)[0])   # entity guard
+        self.assertTrue(gates("कलत नाहि मी तयार आहें", "कळत नाही मी तयार आहे", 0.5)[0])
+        self.assertFalse(gates("मी उद्या येतो", "Here is the corrected text: मी उद्या येतो", 0.5)[0])
+        self.assertFalse(gates("मी उद्या येतो", "", 0.5)[0])
+        self.assertFalse(gates("मी उद्या 5 वाजता office ला येतो", "मी उद्या येतो", 0.5)[0])
+        self.assertFalse(gates("मी 5 वाजता येतो", "मी 6 वाजता येतो", 0.5)[0])   # entity guard
+
+    def test_word_gate_keeps_only_safe_edits(self):
+        from pipeline.stages.cleanup import word_gate
+        ok = lambda a, b: word_gate(a, b, "mr", 0.25, use_lm=False)[0]   # the rules alone
+        self.assertEqual(ok("ठीक है", "ठीक आहे"), "ठीक आहे")                      # Hindi form -> Marathi
+        self.assertEqual(ok("मी आज नहीं येणार", "मी आज नाही येणार"), "मी आज नाही येणार")
+        self.assertEqual(ok("ते पुस्तका वाचतोय", "ते पुस्तकं विकतोय"), "ते पुस्तकं वाचतोय")  # different word kept
+        self.assertEqual(ok("मी घरी जातो", "मी Gharी जातो"), "मी घरी जातो")              # no other script
+        self.assertEqual(ok("दुकान में है का", "दुकान में है क्या"), "दुकान में है का")  # no new Hindi form
+        self.assertEqual(ok("सांगतो मावशी", "सांगतोवशी"), "सांगतो मावशी")          # no merged/removed words
+        self.assertEqual(ok("मी येतो", "मी उद्या येतो"), "मी येतो")                   # no added words
+
+    def test_language_model_check(self):
+        from pipeline import lm
+        from pipeline.stages.cleanup import word_gate
+        if not lm.installed("mr"):
+            self.skipTest("Marathi language model not installed")
+        # a Hindi -> Marathi form fix that makes the line more Marathi is kept
+        self.assertEqual(word_gate("माझी गाडी खराब है", "माझी गाडी खराब आहे", "mr", 0.25)[0], "माझी गाडी खराब आहे")
+        self.assertGreater(lm.load("mr").per_word("मी उद्या सकाळी बाजारात जाणार आहे"),
+                           lm.load("mr").per_word("मैं कल सुबह बाजार जाने वाला हूं"))
 
 
 class TestLidEvidence(unittest.TestCase):
@@ -138,6 +182,70 @@ class TestLidEvidence(unittest.TestCase):
         ev = text_evidence(["मी आता घरी आहे, तू कुठे आहेस? बोलो बोलो बोलो बोलो"])
         self.assertEqual(ev["hi_markers"], 1)          # a loop counts once
         self.assertGreaterEqual(ev["mr_markers"], 3)
+
+
+class TestSegmentLanguage(unittest.TestCase):
+    def test_english_needs_strong_evidence(self):
+        from pipeline.stages.lid import segment_language
+        pr = ["mr", "hi", "en"]
+        self.assertEqual(segment_language({"mr": 0.01, "hi": 0.5, "en": 0.49}, "mr", pr, 0.8), "mr")  # E20 case
+        self.assertEqual(segment_language({"mr": 0.01, "hi": 0.04, "en": 0.95}, "mr", pr, 0.8), "en")
+        self.assertEqual(segment_language({}, "mr", pr, 0.8), "mr")
+        self.assertEqual(segment_language({"mr": 0.1, "hi": 0.85, "en": 0.05}, "en", pr, 0.8), "mr")
+
+
+class TestLanguageConfirm(unittest.TestCase):
+    def _ask(self, answers):
+        import builtins
+        from pipeline import langcheck
+        feed = iter(answers)
+        orig_input, orig_out = builtins.input, langcheck.out
+        builtins.input, langcheck.out = (lambda prompt="": next(feed)), (lambda *a, **k: None)
+        try:
+            return langcheck.ask({"lang": "mr", "name": "Marathi", "confidence": 0.62, "basis": "test"})
+        finally:
+            builtins.input, langcheck.out = orig_input, orig_out
+
+    def test_enter_accepts_guess(self):
+        self.assertEqual(self._ask([""]), "mr")
+
+    def test_other_language_overrides(self):
+        self.assertEqual(self._ask(["hi"]), "hi")
+        self.assertEqual(self._ask(["xx", "EN"]), "en")   # invalid answer -> asked again; case-insensitive
+
+    def test_lang_argument(self):
+        from pipeline.common import TrxError
+        from pipeline.langcheck import confirm
+        self.assertEqual(confirm("unused", "hi")[0], "hi")
+        self.assertIsNone(confirm("unused", "auto")[0])
+        with self.assertRaises(TrxError):
+            confirm("unused", "fr")
+
+
+class TestResume(unittest.TestCase):
+    def test_lock_and_unfinished_detection(self):
+        import json
+        import tempfile
+        from pipeline.run import RunLock, find_unfinished
+        with tempfile.TemporaryDirectory() as tmp:
+            runs = Path(tmp)
+            audio = runs / "a.wav"
+            audio.write_bytes(b"RIFF-test")
+            import hashlib
+            sha = hashlib.sha256(b"RIFF-test").hexdigest()
+            run = runs / "a-1"
+            (run / "work").mkdir(parents=True)
+            (run / "plan.json").write_text("{}", encoding="utf-8")
+            (run / "work" / "run_state.json").write_text(json.dumps(
+                {"state": "running", "input_sha256": sha, "overrides": {"lang": "mr"}}), encoding="utf-8")
+            held = RunLock(run)
+            self.assertTrue(held.acquire())
+            self.assertIsNone(find_unfinished(str(audio), {}, runs))        # still running (lock held)
+            held.release()
+            self.assertEqual(find_unfinished(str(audio), {}, runs), run)    # process gone -> resumable
+            self.assertEqual(find_unfinished(str(audio), {"lang": "mr"}, runs), run)
+            self.assertIsNone(find_unfinished(str(audio), {"lang": "hi"}, runs))       # different options
+            self.assertIsNone(find_unfinished(str(audio), {"engine": "x"}, runs))
 
 
 class TestOfflineGuard(unittest.TestCase):

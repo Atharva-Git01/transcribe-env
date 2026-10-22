@@ -14,8 +14,21 @@ ARABIC = re.compile(r"[؀-ۿ]")
 # letters that are neither Devanagari nor Latin (e.g. Bengali, Gujarati, Arabic) in a mr/hi segment = wrong script
 FOREIGN_LETTER = re.compile(r"[^ऀ-ॿ᳐-᳿꣠-ꣿA-Za-z0-9\s\.,!?;:'\"()\-–—…।॥%/&+@#*\[\]]")
 CHAR_RUN = re.compile(r"(.)\1{7,}")  # the same character 8+ times in a row (decoder loop inside one "word")
-HINDI_IN_MARATHI = {"नहीं", "क्या", "मैं", "हैं", "है", "हूँ", "कहाँ"}
 WORD = re.compile(r"[^\s\.,!?।॥;:\"'()]+")
+
+
+LATIN_OR_DIGIT = re.compile(r"[A-Za-z0-9]")
+
+
+def _lexicon(lang: str):
+    """The language model's vocabulary (millions of real word forms from IndicCorp v2), if installed."""
+    from .. import lm
+    return lm.load(lang) if lang and lm.installed(lang) else None
+
+
+def lm_tokens(text: str) -> list[str]:
+    from ..lm import tokens
+    return tokens(text)
 
 
 def _wordlist(path) -> set[str]:
@@ -48,11 +61,59 @@ def _prompt_shingles(text: str, k: int = 4) -> set[tuple]:
     return {tuple(toks[i:i + k]) for i in range(len(toks) - k + 1)}
 
 
+def _turn_at(turns: list[dict], t: float) -> str | None:
+    hit = [x for x in turns if x["start"] <= t <= x["end"]]
+    if hit:
+        return hit[0]["speaker"]
+    near = min(turns, key=lambda x: min(abs(x["start"] - t), abs(x["end"] - t))) if turns else None
+    return near["speaker"] if near and min(abs(near["start"] - t), abs(near["end"] - t)) <= 1.0 else None
+
+
+def split_by_turns(segments: list[dict], turns: list[dict]) -> list[dict]:
+    """Cut a segment where the speaker changes (each word goes to the diarization turn at its midpoint).
+    Text is unchanged — only line boundaries move — so every transcript line has one speaker."""
+    if not turns:
+        return segments
+    out = []
+    for seg in segments:
+        words = seg.get("words") or []
+        labels = [_turn_at(turns, (w["start"] + w["end"]) / 2) for w in words]
+        known = [lab for lab in labels if lab]
+        if len(words) < 2 or len(set(known)) < 2:
+            out.append(seg)
+            continue
+        for i, lab in enumerate(labels):  # unknown words join the previous (or next) speaker
+            labels[i] = lab or (labels[i - 1] if i else next(x for x in labels if x))
+        pieces, cur = [], [0]
+        for i in range(1, len(words)):
+            if labels[i] != labels[cur[0]]:
+                pieces.append(cur)
+                cur = []
+            cur.append(i)
+        pieces.append(cur)
+        from .recognise import text_compression_ratio
+        for idx in pieces:
+            ws = [words[i] for i in idx]
+            text = "".join(w["word"] for w in ws).strip()
+            out.append(dict(seg, start=ws[0]["start"], end=ws[-1]["end"], text=text, words=ws,
+                            compression_ratio=text_compression_ratio(text),
+                            split_from=seg.get("split_from") or [seg["start"], seg["end"]], split_reason="speaker change"))
+    for i, s in enumerate(out, 1):
+        s["id"] = i
+    return out
+
+
 def run(ctx: Ctx, params: dict) -> None:
     thr = load_config("thresholds")["verify"]
     lib = TRX_HOME / "library"
     rec = ctx.stage_params("recognise")
     prompt_tpl = rec.get("initial_prompt_file", "")
+    if ctx.turns:
+        before = len(ctx.segments)
+        ctx.segments = split_by_turns(ctx.segments, ctx.turns)
+        if len(ctx.segments) != before:
+            ctx.log.add("polish", f"split {len(ctx.segments) - before} line(s) at speaker changes",
+                        "Every transcript line gets one speaker; words are not changed, only where lines break.")
     flagged = 0
     for s in ctx.segments:
         lang = s.get("language") or ctx.language or ""
@@ -86,8 +147,16 @@ def run(ctx: Ctx, params: dict) -> None:
             if foreign:
                 kind = "Arabic/Urdu" if ARABIC.search(s["text"]) else "non-Devanagari"
                 flags.append(f"wrong_script: {kind} characters ({''.join(foreign[:5])})")
+        lex = _lexicon(lang)
+        if lex is not None:
+            hot = set(rec.get("hotwords") or [])
+            unknown = [w for w in lm_tokens(s["text"]) if len(w) > 1 and not LATIN_OR_DIGIT.search(w)
+                       and w not in hot and lex.count(w) < int(thr.get("lexicon_min_count", 3))]
+            if unknown:
+                flags.append(f"unknown_words: {', '.join(dict.fromkeys(unknown))} (not in the {lang} lexicon)")
         if lang == "mr":
-            hindi = sorted(set(tokens) & HINDI_IN_MARATHI)
+            from .cleanup import lang_forms
+            hindi = sorted(set(tokens) & lang_forms("mr")[0])
             if hindi:
                 flags.append(f"hindi_forms_in_marathi: {', '.join(hindi)}")
         s["flags"] = flags

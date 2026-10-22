@@ -165,3 +165,67 @@ source_json_dir = "toolchain/models/sherpa-diarization"
 files = [
   { url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx", dest = "toolchain/models/sherpa-diarization/wespeaker_en_voxceleb_resnet34_LM.onnx", sha256 = "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012", size = 26530550 },
 ]
+
+[[item]]
+id = "speaker_eres2netv2"
+phase = 4
+kind = "file"
+licence = "Apache-2.0"
+files = [
+  { url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx", dest = "toolchain/models/speaker-eres2netv2/3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx", sha256 = "bf1a75b9930474cf3389ef415e6e5d38ca96fea4a3a00f7e301d080a58ee2239", size = 71441526 },
+]
+note = "diarization embeddings (mode embed_cluster, E19); SOURCE.json is written by hand after the sha256 check"
+
+[[item]]
+id = "lm_mr_v1"
+phase = 6
+kind = "build"
+licence = "CC-0 (IndicCorp v2)"
+downloads = [
+  { url = "https://huggingface.co/datasets/ai4bharat/IndicCorpV2/resolve/main/data/mr.txt", as = "corpus.txt", bytes = 1073741824, sha256 = "c5b9013ec33357e4d2acec1e6cd75f1fab43c6f1c7ca2a04d98ea2253e888f0c" },
+]
+build = ["setup/build_lm.py", "--lang", "mr", "--corpus", "{corpus}", "--source", "IndicCorp v2 (AI4Bharat) data/mr.txt, first 1 GiB", "--licence", "CC-0"]
+files = [ { dest = "toolchain/models/lm-mr-v1/meta.json" }, { dest = "toolchain/models/lm-mr-v1/SOURCE.json" } ]
+extra_mb = 1200
+note = "downloads 1 GiB of text, builds a 125 MB model, deletes the text"
+
+[[item]]
+id = "lm_hi_v1"
+phase = 6
+kind = "build"
+licence = "CC-0 (IndicCorp v2)"
+downloads = [
+  { url = "https://huggingface.co/datasets/ai4bharat/IndicCorpV2/resolve/main/data/hi-1.txt", as = "corpus.txt", bytes = 1073741824, sha256 = "a62c48e609ab02b99fc864622c2dda4f47847298ef28896b4217693ff838ffe1" },
+]
+build = ["setup/build_lm.py", "--lang", "hi", "--corpus", "{corpus}", "--source", "IndicCorp v2 (AI4Bharat) data/hi-1.txt, first 1 GiB", "--licence", "CC-0"]
+files = [ { dest = "toolchain/models/lm-hi-v1/meta.json" }, { dest = "toolchain/models/lm-hi-v1/SOURCE.json" } ]
+extra_mb = 1200
+note = "downloads 1 GiB of text, builds a 125 MB model, deletes the text"
+
+[[item]]
+id = "fixture_fleurs_mr"
+phase = 6
+kind = "build"
+licence = "CC-BY-4.0 (Google FLEURS)"
+downloads = [
+  { url = "https://huggingface.co/datasets/google/fleurs/resolve/main/data/mr_in/test.tsv", as = "tsv.tsv", sha256 = "372f670d6162aeba9b61b28e566b539499cc761884152b6823db14c61f0e98ef" },
+  { url = "https://huggingface.co/datasets/google/fleurs/resolve/main/data/mr_in/audio/test.tar.gz", as = "tar.tar.gz", bytes = 26214400, sha256 = "142d9422a21141811a34184c36ed073d188cb25651b47dd0173d4b8f3c538640" },
+]
+build = ["setup/make_fleurs_fixture.py", "--lang", "mr", "--tsv", "{tsv}", "--tar", "{tar}", "--n", "10"]
+files = [ { dest = "evals/fixtures/fleurs_mr_test10/truth.json" } ]
+extra_mb = 27
+note = "10 read Marathi sentences (clean speech) as one eval fixture"
+
+[[item]]
+id = "fixture_fleurs_hi"
+phase = 6
+kind = "build"
+licence = "CC-BY-4.0 (Google FLEURS)"
+downloads = [
+  { url = "https://huggingface.co/datasets/google/fleurs/resolve/main/data/hi_in/test.tsv", as = "tsv.tsv", sha256 = "889e82e2875490f9533ff59ab67326fcfa01cf828fc4412758aaaa1f442a729f" },
+  { url = "https://huggingface.co/datasets/google/fleurs/resolve/main/data/hi_in/audio/test.tar.gz", as = "tar.tar.gz", bytes = 26214400, sha256 = "7474b8b4b4b7cd21f297797f6fae00c721e96707f3cde6742baa1ba7cba87547" },
+]
+build = ["setup/make_fleurs_fixture.py", "--lang", "hi", "--tsv", "{tsv}", "--tar", "{tar}", "--n", "10"]
+files = [ { dest = "evals/fixtures/fleurs_hi_test10/truth.json" } ]
+extra_mb = 27
+note = "10 read Hindi sentences (clean speech) as one eval fixture"

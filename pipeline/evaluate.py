@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 
 from .common import TRX_HOME, TrxError, env_version, read_json, utc_now, write_json
-from .metrics import cer, self_test, wer
+from .metrics import cer, self_test, speaker_accuracy, wer
 from .stages import IMPLEMENTED
 
 FIXTURES = TRX_HOME / "evals" / "fixtures"
@@ -73,12 +73,15 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
                                 engine=engine, lang=lang, runs_dir=EVAL_RUNS)
         hyp = hypothesis_text(EVAL_RUNS / info["run_id"])
         report = read_json(EVAL_RUNS / info["run_id"] / "report.json")
+        tj = EVAL_RUNS / info["run_id"] / "out" / "transcript.json"
+        spk = speaker_accuracy(truth.get("segments", []), read_json(tj)["segments"]) if tj.is_file() else None
         rows.append({
             "fixture": f["id"], "exit": name, "verdict": info["verdict"], "recipe": info["recipe"],
             "engines": report["metrics"].get("engines", []), "language": report["metrics"].get("language"),
             "cer": round(cer(truth["reference_text"], hyp), 4), "wer": round(wer(truth["reference_text"], hyp), 4),
             "seconds": round(time.time() - t0, 1), "run_id": info["run_id"],
             "flagged_time_ratio": report["metrics"].get("flagged_time_ratio"),
+            "speaker_acc": spk, "speakers_found": report["metrics"].get("speakers_found"),
         })
     result = {"schema": "trx.eval/1", "env_version": env_version(), "utc": utc_now(),
               "overrides": {"engine": engine, "recipe": recipe, "lang": lang}, "rows": rows}
@@ -99,8 +102,8 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
     if save_baseline:
         base.setdefault("scores", {})
         for r in rows:
-            base["scores"][r["key"]] = {"cer": r["cer"], "wer": r["wer"], "env_version": env_version(),
-                                        "utc": result["utc"]}
+            base["scores"][r["key"]] = {"cer": r["cer"], "wer": r["wer"], "speaker_acc": r.get("speaker_acc"),
+                                        "env_version": env_version(), "utc": result["utc"]}
         base["env_version"] = env_version()
         write_json(BASELINE, base)
     return result
