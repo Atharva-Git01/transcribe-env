@@ -365,6 +365,58 @@ class TestEvalRun(unittest.TestCase):
         self.assertIsNone(res["overrides"]["lang"])
 
 
+class TestEngineCache(unittest.TestCase):
+    def test_one_kept_model_loaded_once(self):
+        from unittest import mock
+        from pipeline.engines import cache
+        made = []
+
+        class Fake:
+            family = "fake"
+
+            def __init__(self, eid):
+                self.id, self.keep_loaded, self.loaded = eid, eid.startswith("keep"), False
+
+            def load(self, device, params):
+                self.loaded = True
+                return {"engine": self.id, "device": device, "compute_type": "x"}
+
+            def unload(self):
+                self.loaded = False
+
+            def configure(self, params):
+                self.params = params
+
+        def fake_make(eid):
+            made.append(Fake(eid))
+            return made[-1]
+
+        with mock.patch("pipeline.engines.faster_whisper_engine.make", fake_make):
+            cache.release()
+            a, _ = cache.get("keep_a", "cpu", {})
+            cache.done("keep_a", a)
+            self.assertTrue(a.loaded)                                     # kept for the next stage (E34)
+            b, info = cache.get("keep_a", "cpu", {"piece_max_s": 20.0})
+            self.assertIs(a, b)
+            self.assertTrue(info["reused"])
+            self.assertEqual(len(made), 1)                                # loaded once per run
+            self.assertEqual(b.params, {"piece_max_s": 20.0})
+            c, _ = cache.get("other", "cpu", {})                          # another engine: the held one goes first (E06)
+            self.assertFalse(a.loaded)
+            cache.done("other", c)
+            self.assertFalse(c.loaded)                                    # not kept: unloaded after use
+            self.assertEqual(cache.held(), [])
+
+    def test_trusted_language_id(self):
+        from pipeline.lid import acoustic_decision
+        lid = {"top3": [{"lang": "mr", "prob": 1.0}, {"lang": "hi", "prob": 0.0}],
+               "per_window": [{"top": "mr"}] * 5 + [{"top": "en"}]}
+        d = acoustic_decision(lid, "indic_transcribe_core")
+        self.assertEqual((d["decision"], d["confidence"], d["code_switch_risk"]), ("mr", 1.0, "low"))
+        weak = dict(lid, top3=[{"lang": "hi", "prob": 0.55}, {"lang": "mr", "prob": 0.45}])
+        self.assertEqual(acoustic_decision(weak, "indic_transcribe_core")["decision"], "mr")   # priority language
+
+
 class TestOfflineGuard(unittest.TestCase):
     def test_blocks_public_hosts(self):
         offline.install()

@@ -6,7 +6,6 @@ from .. import gpu
 from ..audio import read_wav
 from ..common import TrxError, load_config
 from ..context import Ctx
-from ..engines.faster_whisper_engine import make
 from ..lid import detect, lid_engine_id
 
 
@@ -65,8 +64,9 @@ def run(ctx: Ctx, params: dict) -> None:
         eng_id = lid_engine_id()
         if not eng_id:
             raise TrxError("MODEL_MISSING", "no installed LID engine (config [languages].lid_engines)")
-        eng = make(eng_id)
-        eng.load(gpu.choose_device(), rec.get("faster_whisper", {}))
+        from ..engines import cache
+        from .recognise import engine_params
+        eng, _ = cache.get(eng_id, gpu.choose_device(), engine_params(rec, eng_id))   # the probe's model (E34)
         max_len = float(ctx.stage_params("vad").get("max_segment_s", 15.0))
         try:
             for tr in ctx.tracks:
@@ -82,7 +82,7 @@ def run(ctx: Ctx, params: dict) -> None:
                     ctx.segment_languages.append({"track": tr.label, "start": a, "end": b, "language": lang,
                                                   "probs": probs})
         finally:
-            eng.unload()
+            cache.done(eng_id, eng)
         counts = {c: sum(1 for g in ctx.segment_languages if g["language"] == c) for c in (main, "en")}
         ctx.log.add("lid", f"per-group language ({main} vs English) for {len(ctx.segment_languages)} speech groups: "
                     f"{counts}", "Code-switched audio: English groups are recognised as English, the rest in the "

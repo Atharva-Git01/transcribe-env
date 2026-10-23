@@ -64,6 +64,9 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
    decided per engine.
 6. GPU first (owner's rule): use the GPU build when one exists, keep the CPU as the fallback, and measure the RAM a
    run holds (free commit, E33) as well as the VRAM; set `[runtime.memory_gb]` from that measurement.
+7. Load engines through `pipeline/engines/cache.py`. An engine that several stages use sets `keep_loaded = True`;
+   one whose own language ID tells Marathi from Hindi sets `lid_trusted = True` (E34). Time every stage of a run
+   (decisions.json timestamps) before and after.
 
 ## Never
 - Never change anything during a run or inside `runs/`.

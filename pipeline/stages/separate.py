@@ -44,6 +44,9 @@ def _separate(x: np.ndarray, sr: int, params: dict) -> tuple[np.ndarray, np.ndar
     random.seed(0)          # Demucs draws its time shift from Python's random, not torch (E32): same input, same output
     torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark = True, False
     dev = device()
+    if dev == "cuda" and torch.cuda.mem_get_info()[0] < 1.5e9:
+        from ..engines import cache
+        cache.release()              # a model kept for recognition (E34) yields the GPU to Demucs; reloaded later
     model = get_model(params.get("model", "htdemucs"), repo=MODEL_DIR)
     model.eval()
     wav = torch.from_numpy(np.stack([x, x])).float()

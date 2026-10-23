@@ -1,6 +1,6 @@
 {
   "schema": "trx.baseline/1",
-  "env_version": "0.7.0",
+  "env_version": "0.8.0",
   "scores": {
     "pappa_260603_211622|phone_call_mono|faster_whisper_large_v3|mr": {
       "cer": 0.5132,
@@ -27,36 +27,36 @@
       "cer": 0.2838,
       "wer": 0.3347,
       "speaker_acc": 0.9158,
-      "env_version": "0.7.0",
-      "utc": "2026-10-23T09:41:22Z"
+      "env_version": "0.8.0",
+      "utc": "2026-10-23T11:16:51Z"
     },
     "fleurs_hi_test10|meeting_multi_speaker|indic_transcribe_core|hi": {
       "cer": 0.0211,
       "wer": 0.0599,
       "speaker_acc": null,
-      "env_version": "0.7.0",
-      "utc": "2026-10-23T09:45:36Z"
+      "env_version": "0.8.0",
+      "utc": "2026-10-23T11:20:58Z"
     },
     "fleurs_mr_test10|meeting_multi_speaker|indic_transcribe_core|mr": {
       "cer": 0.0471,
       "wer": 0.1264,
       "speaker_acc": null,
-      "env_version": "0.7.0",
-      "utc": "2026-10-23T09:49:54Z"
+      "env_version": "0.8.0",
+      "utc": "2026-10-23T11:24:50Z"
     },
     "fleurs_mr_test10_music5db|noisy_field_audio|indic_transcribe_core|mr": {
       "cer": 0.3876,
       "wer": 0.478,
       "speaker_acc": null,
-      "env_version": "0.7.0",
-      "utc": "2026-10-23T09:53:27Z"
+      "env_version": "0.8.0",
+      "utc": "2026-10-23T11:28:17Z"
     },
     "pappa_260603_211622|phone_call_mono|indic_transcribe_core|mr": {
       "cer": 0.3744,
       "wer": 0.7109,
       "speaker_acc": 0.9752,
-      "env_version": "0.7.0",
-      "utc": "2026-10-23T09:56:02Z"
+      "env_version": "0.8.0",
+      "utc": "2026-10-23T11:30:25Z"
     }
   },
   "references": {

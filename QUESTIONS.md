@@ -19,7 +19,7 @@
 | 19 | Pushed call text | Rewrite history + force-push | **done** (2026-10-23): every commit scanned clean |
 | 22 | Disk space | Delete old eval runs, keep the newest per fixture | **done**: 57 runs, 1.4 GB |
 | 20 | CUDA PyTorch | Yes; and GPU first for every model from now on | **done** (0.7.1): Indic-Transcribe and Demucs on the RTX 3050 (bf16, 2.5 GB VRAM), loaded straight to the GPU (accelerate). Pappa RTF 3.06 → 2.54, music 3.57 → 1.58; RAM per run ~7 → ~2.7 GB; CER unchanged within noise |
-| 23 | `--fast` (slower and worse since the GPU switch) | First: redefine as long pieces if really faster. It was not (Pappa 143 vs 140 s; AMI 6 % quicker), so: remove it, and speed up every run instead | **done** (0.7.2): `--fast` stops with a clear message; the speed-up (Indic-Transcribe language ID + model kept loaded) is the next step |
+| 23 | `--fast` (slower and worse since the GPU switch) | First: redefine as long pieces if really faster. It was not (Pappa 143 vs 140 s; AMI 6 % quicker), so: remove it, and speed up every run instead | **done**: `--fast` stops with a clear message (0.7.2); every run got quicker instead (0.8.0: Indic-Transcribe language ID + one model load per run; Pappa 140 → 111 s, same CER) |
 | 21 | Keep IndicConformer? | Move it to the USB stick, plus everything not needed now; delete what is not needed | **done**: IndicConformer, Whisper large-v3 + medium, Gemma 3 and the setup downloads on D: (sha256-verified, junctions); pip/npm/conda/Composer caches and old crash dumps removed. C: 6.5 → 18.4 GB free |
 
 ## Open items (2026-10-23)

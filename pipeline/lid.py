@@ -82,6 +82,27 @@ def speech_groups(speech: list[tuple[float, float]], max_len: float = 15.0, max_
     return groups
 
 
+def acoustic_decision(acoustic: dict, engine_id: str) -> dict:
+    """Step 2 for an engine whose own language ID tells Marathi from Hindi (`lid_trusted`, Indic-Transcribe: right on
+    5/5 fixtures with P = 1.0): the acoustic decision stands and no forced decoding runs (it took 28 s per file with
+    Whisper, E34). Same result shape as refine(); weak evidence still falls back to the owner's priority language."""
+    cfg = load_config("defaults")["languages"]
+    windows = acoustic.get("per_window", [])
+    top = acoustic["top3"][0]
+    agree = sum(1 for w in windows if w["top"] == top["lang"])
+    en_windows = sum(1 for w in windows if w["top"] == "en")
+    decision, conf = top["lang"], float(top["prob"])
+    basis = f"acoustic language ID of {engine_id}: {decision} in {agree}/{len(windows)} windows (mean P {conf:.2f})"
+    priority = [lang for lang in cfg.get("priority", []) if lang in INDIC]
+    if decision in INDIC and priority and conf < float(cfg.get("text_lid_min_confidence", 0.65)) \
+            and decision != priority[0]:
+        basis = f"{basis}; evidence weak -> priority language {priority[0]}"
+        decision = priority[0]
+    risk = "high" if decision in INDIC and en_windows >= int(cfg.get("code_switch_min_en_windows", 3)) else "low"
+    return {"decision": decision, "basis": basis, "code_switch_risk": risk, "confidence": round(conf, 3),
+            "evidence": {"windows": len(windows), "agree": agree, "en_windows": en_windows}}
+
+
 def refine(engine, audio: np.ndarray, speech: list[tuple[float, float]], acoustic: dict) -> dict:
     """Step 2 of LID (E10). The same short speech groups are decoded twice, forced to Marathi and forced to Hindi
     (beam 5, temperature 0). Looping segments (compression ratio > 2.4) are dropped. Decision:

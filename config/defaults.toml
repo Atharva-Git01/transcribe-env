@@ -30,7 +30,9 @@ review_tag = "[review]"           # appended to every flagged line; speakers are
 
 [languages]
 priority = ["mr", "hi", "en"]          # also the LID candidate set; first entry = fallback if nothing is measured
-lid_engines = ["faster_whisper_large_v3_turbo", "faster_whisper_large_v3", "faster_whisper_medium"]  # first installed
+# first installed. Indic-Transcribe since 0.8.0: right on 5/5 fixtures with P = 1.0 (Whisper's acoustic top was Hindi
+# for all 3 Marathi ones, E10) and no forced decoding; its load is shared with recognition (E34)
+lid_engines = ["indic_transcribe_core", "faster_whisper_large_v3_turbo", "faster_whisper_large_v3", "faster_whisper_medium"]
 lid_windows = 6                        # probe: up to 6 windows spread over the speech
 lid_window_sec = 30.0
 code_switch_en_min = 0.20              # English mean prob >= this next to a strong Indic language = code-switch risk

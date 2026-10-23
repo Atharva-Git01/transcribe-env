@@ -57,8 +57,8 @@ def _advanced(path: Path, duration: float, thr: dict) -> dict | None:
     from .. import gpu
     from ..audio import decode_mono
     from ..common import load_config
-    from ..engines.faster_whisper_engine import make
-    from ..lid import detect, lid_engine_id, refine, windows_from_speech
+    from ..engines import cache
+    from ..lid import acoustic_decision, detect, lid_engine_id, refine, windows_from_speech
     from .vad import speech_regions
 
     audio = decode_mono(path, 16000)  # mono mix, float32
@@ -87,38 +87,8 @@ def _advanced(path: Path, duration: float, thr: dict) -> dict | None:
             res.update(noise_floor=noise_floor, speech_level=speech_level, snr=max(0.0, speech_level - noise_floor),
                        noise_method="vad_inspeech_percentile_v1 (10th vs 95th percentile of 30 ms frames inside VAD "
                                     "speech, codec-gated frames excluded)")
-    # language ID on windows spread over the speech
-    eng_id = lid_engine_id()
-    if eng_id and speech_sec >= 1.0:
-        cfg = load_config("defaults")["languages"]
-        cands = list(cfg["priority"])
-        eng = make(eng_id)
-        eng.load(gpu.choose_device(), {})
-        try:
-            wins = windows_from_speech(speech, duration, int(cfg.get("lid_windows", 6)), float(cfg.get("lid_window_sec", 30)))
-            lid = detect(eng, audio, wins, cands)
-            ref = refine(eng, audio, speech, lid) if lid["top3"] else None
-        finally:
-            eng.unload()
-        if lid["top3"] and ref:
-            ev = ref["evidence"]
-            res["language"] = {
-                "top3": lid["top3"],
-                "decision": {"lang": ref["decision"], "basis": ref["basis"], "confidence": ref["confidence"]},
-                "code_switch_risk": ref["code_switch_risk"],
-                "status": (f"measured with {eng_id}: acoustic per-window tops {[w['top'] for w in lid['per_window']]}; "
-                           f"forced-decode log-prob mr {ev['ll_mr']} / hi {ev['ll_hi']} on {ev['groups']} speech groups; "
-                           f"distinct markers mr {ev['mr_markers']} / hi {ev['hi_markers']}"),
-            }
-            weak_indic = ref["decision"] in ("mr", "hi") and (
-                ref["confidence"] is None or ref["confidence"] < float(cfg.get("text_lid_min_confidence", 0.65)))
-            if weak_indic:
-                res["warnings"].append(f"language_ambiguous: decided {ref['decision']} on weak evidence "
-                                       f"({ref['basis']}); confirm or rerun with --lang")
-    elif speech_sec < 1.0:
-        res["warnings"].append("almost_no_speech: Silero VAD found under 1 s of speech")
-
-    # music / TV behind the voice: Demucs on the 10 s window with the most speech — feeds the music rule
+    # music / TV behind the voice: Demucs on the 10 s window with the most speech — feeds the music rule. It runs
+    # BEFORE language ID: the language-ID model stays on the GPU for recognition and leaves ~1 GB free (E34)
     try:
         from .separate import AVAILABLE as SEP_OK
     except ImportError:
@@ -137,6 +107,42 @@ def _advanced(path: Path, duration: float, thr: dict) -> dict | None:
             res["music"] = {"present": rel > limit, "background_vs_speech_db": round(rel, 1),
                             "status": f"measured: Demucs htdemucs on {best:.0f}-{best + win:.0f} s; background "
                                       f"{rel:.1f} dB vs speech (present above {limit} dB)"}
+
+    # language ID on windows spread over the speech
+    eng_id = lid_engine_id()
+    if eng_id and speech_sec >= 1.0:
+        cfg = load_config("defaults")["languages"]
+        cands = list(cfg["priority"])
+        eng, _ = cache.get(eng_id, gpu.choose_device(), {})     # kept for recognition when it is the same model (E34)
+        trusted = getattr(eng, "lid_trusted", False)
+        try:
+            wins = windows_from_speech(speech, duration, int(cfg.get("lid_windows", 6)), float(cfg.get("lid_window_sec", 30)))
+            lid = detect(eng, audio, wins, cands)
+            ref = None
+            if lid["top3"]:
+                ref = acoustic_decision(lid, eng_id) if trusted else refine(eng, audio, speech, lid)
+        finally:
+            cache.done(eng_id, eng)
+        if lid["top3"] and ref:
+            ev = ref["evidence"]
+            tops = [w["top"] for w in lid["per_window"]]
+            res["language"] = {
+                "top3": lid["top3"],
+                "decision": {"lang": ref["decision"], "basis": ref["basis"], "confidence": ref["confidence"]},
+                "code_switch_risk": ref["code_switch_risk"],
+                "status": (f"measured with {eng_id}: acoustic per-window tops {tops}; no forced decoding (the engine "
+                           "tells Marathi from Hindi itself)") if trusted else
+                          (f"measured with {eng_id}: acoustic per-window tops {tops}; "
+                           f"forced-decode log-prob mr {ev['ll_mr']} / hi {ev['ll_hi']} on {ev['groups']} speech groups; "
+                           f"distinct markers mr {ev['mr_markers']} / hi {ev['hi_markers']}"),
+            }
+            weak_indic = ref["decision"] in ("mr", "hi") and (
+                ref["confidence"] is None or ref["confidence"] < float(cfg.get("text_lid_min_confidence", 0.65)))
+            if weak_indic:
+                res["warnings"].append(f"language_ambiguous: decided {ref['decision']} on weak evidence "
+                                       f"({ref['basis']}); confirm or rerun with --lang")
+    elif speech_sec < 1.0:
+        res["warnings"].append("almost_no_speech: Silero VAD found under 1 s of speech")
 
     # speaker count (phase 4, sherpa-onnx) for files up to [probe].diarize_max_minutes — feeds rule R3
     try:

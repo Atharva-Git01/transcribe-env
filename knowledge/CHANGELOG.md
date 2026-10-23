@@ -3,6 +3,28 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.8.0 — 2026-10-23 (one model load per run, Indic-Transcribe language ID)
+**Eval (seeded; new baseline saved): every CER identical to 0.7.1, every run quicker.**
+
+| Fixture | CER | Real-time factor 0.7.1 → 0.8.0 | Notes |
+|---|---|---|---|
+| Pappa call (mr, phone) | 0.374 | 2.54 → **2.10** (1.98 in a single clean run) | 140 s → 111 s; verdict REVIEW → PASS |
+| FLEURS mr | 0.047 | 1.93 → **1.75** | |
+| FLEURS hi | 0.021 | 1.99 → **1.92** | |
+| FLEURS mr + music | 0.388 | 1.58 → **1.55** | the separation still reloads the model once (VRAM) |
+| AMI meeting (en) | 0.284 | 1.95 → **1.81** | speakers right 0.916 |
+
+- **Language ID by Indic-Transcribe** (E34): right on 5/5 fixtures with P = 1.0. The 28 s of forced Marathi/Hindi
+  decoding that Whisper needed (E10) is gone, and so is the Whisper load (14 s). Whisper remains the fallback
+  language-ID engine.
+- **One load per run** (`pipeline/engines/cache.py`, E34): the probe's model is reused by the per-group language ID
+  and by recognition (−27 s), then released. The probe's music check moved before language ID so that both fit on the
+  GPU.
+- The Pappa verdict became PASS: its REVIEW came only from Whisper's weak language evidence. The gate never measures
+  accuracy: PASS means no flags.
+- Where the time goes now (Pappa, 111 s): probe 52 s (model load ~29 s, speaker-count estimate 16 s, music check
+  4 s, language ID 3 s), denoise 17 s, diarization 16 s, recognition 21 s.
+
 ## 0.7.2 — 2026-10-23 (`--fast` removed)
 - **`--fast` removed (owner's decision).** As Whisper turbo it had become slower than the default (RTF 3.74 vs 2.54)
   and twice as wrong (CER 0.771 vs 0.374). Redefining it as "long speech pieces" was measured first and was not faster

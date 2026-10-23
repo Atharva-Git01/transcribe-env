@@ -68,7 +68,7 @@ Plans: `PLAN_v0.7.md`; overall: `forensic media suit/doc/TRANSCRIPTION_ENVIRONME
 - RTX 3050 Laptop 4 GB: one model on the GPU at a time (load → run → unload). `config/defaults.toml [runtime] device`.
   GPU first (owner's rule): Indic-Transcribe (bf16, ~2.5 GB of VRAM), Demucs, Whisper (language ID) and
   Gemma run on the GPU, one at a time. Small helpers stay on the CPU: DeepFilterNet, Silero VAD, speaker embeddings.
-  A 1-minute phone call takes about 2.5 minutes. A run needs about 3 GB of free memory (15.6 GB of RAM here);
+  A 1-minute phone call takes about 2 minutes. A run needs about 3 GB of free memory (15.6 GB of RAM here);
   below that it stops with `MEMORY_LOW` (E31, E33).
 - The models every run needs are on C: (`toolchain/models/`). The fallbacks (IndicConformer, Whisper large-v3 and
   medium) and Gemma 3 live on the D: USB stick, linked by directory junctions (`D:\transcribe-env-models\README.txt`).

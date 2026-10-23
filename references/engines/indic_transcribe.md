@@ -4,8 +4,8 @@
   nvidia/canary-1b-v2. 25+ languages: 22 Indic, English, Bhojpuri, Bhili; code-mixed speech handled natively.
 - Output modes: `native` (used here) writes standard spelling in the language's own script, numbers as words and
   English words in Devanagari — the owner's convention. No word timings, so each speaker turn is decoded on its own
-  (E28). Built-in language ID (`identify()`), right on 5/5 fixtures with P = 1.0 (not used by the probe yet:
-  CHANGELOG 0.7.0).
+  (E28). Built-in language ID (`identify()`), right on 5/5 fixtures with P = 1.0: the probe's language-ID engine
+  since 0.8.0, loaded once per run and reused by recognition (E34).
 - **Licence: Indic Open Model License v1.0.** Free to self-host, commercial use included. Hosting it as an API or
   service for other people or companies needs Bodhan AI's written approval. Credit is required:
   "Built with Indic-Transcribe-core from Bodhan AI / AI4Bharat". Modified versions given to others keep the licence.

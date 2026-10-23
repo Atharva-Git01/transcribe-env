@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import zlib
 
-from .. import gpu, resources
+from .. import gpu
 from ..audio import read_wav
 from ..common import TRX_HOME, TrxError, env_version, load_config, write_json
 from ..context import Ctx
-from ..engines.faster_whisper_engine import make
+from ..engines import cache
 from ..models import installed
 
 
@@ -239,19 +239,13 @@ def run(ctx: Ctx, params: dict) -> None:
 
     def engine():  # loaded only when something actually has to be decoded (a resumed run may need nothing)
         if held["eng"] is None:
-            e = make(eng_id)
-            rt = load_config("defaults")["runtime"]
-            mem = rt.get("memory_gb", {})
-            on_gpu = getattr(e, "uses_gpu", lambda *_: False)(gpu.choose_device(), fw)
-            need = float(mem.get(f"{e.family}_gpu", mem.get(e.family, 0.0)) if on_gpu else mem.get(e.family, 0.0))
-            have = resources.headroom_gb()
-            if not resources.enough(need, have):
-                raise TrxError("MEMORY_LOW", f"{have:.1f} GB of memory free (RAM + page file); {eng_id} needs about "
-                                             f"{need:g} GB")
-            held["info"] = e.load(gpu.choose_device(), fw)
-            held["eng"] = e
+            # the memory check runs before any load (E31); a model the probe already loaded is reused (E34)
+            e, info = cache.get(eng_id, gpu.choose_device(), fw)
+            reused = info.pop("reused", False)
+            held["info"], held["eng"] = info, e
             ctx.engines_used.append(held["info"])
-            ctx.log.add("recognise", f"loaded {eng_id} on {held['info']['device']} ({held['info']['compute_type']})",
+            ctx.log.add("recognise", f"{'reused' if reused else 'loaded'} {eng_id} on {held['info']['device']} "
+                        f"({held['info']['compute_type']})",
                         f"Engine for language '{'mixed' if per_segment else lang}' from config/defaults.toml "
                         "[engines.primary]" + (f"; preferred {skipped} not installed, so the next choice was used."
                                                if skipped else "."),
@@ -359,7 +353,8 @@ def run(ctx: Ctx, params: dict) -> None:
                         speech_sec=round(speech_sec, 2), ladder_step=step)
     finally:
         if held["eng"] is not None:
-            held["eng"].unload()
+            cache.done(eng_id, held["eng"])
+        cache.release()            # no later stage needs the model: give the GPU back (E06)
     if held["eng"] is None and held["info"]:  # everything came from saved chunks
         ctx.engines_used.append(dict(held["info"], note="from saved chunks"))
     info = held["info"] or {"engine": eng_id}

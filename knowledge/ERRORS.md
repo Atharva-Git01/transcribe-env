@@ -321,3 +321,27 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   ~2.7 GB, loading takes 14–25 s, and the text is identical. `[runtime.memory_gb] indic_transcribe_gpu = 3.0`.
 - **Rule:** on Windows, measure the free commit (RAM + page file) at every step, not just the VRAM; a load path can
   leave a full CPU copy behind.
+
+## E34 — Every run spent ~45 s on Whisper language ID and loaded the speech model twice
+- **Seen (2026-10-23, after the GPU switch):** the 56 s Pappa call took 140 s.
+  - The probe's Whisper language ID took 47 s: load 14 s, 6 windows 4 s, and 28 s of forced Marathi/Hindi decoding.
+    That decoding exists only because Whisper cannot tell the two languages apart (E10).
+  - Recognition then loaded Indic-Transcribe again (27 s).
+- **Fix:**
+  - Indic-Transcribe identifies the language (`[languages] lid_engines`). Engines marked `lid_trusted` skip the forced
+    decoding (`acoustic_decision()` in `pipeline/lid.py`).
+  - `pipeline/engines/cache.py` keeps that model loaded into recognition. One kept model at a time; it is released
+    by a request for any other engine, the end of recognition, the end of the run, or a Demucs separation short of
+    VRAM.
+  - The probe's music check now runs *before* language ID: the held model leaves only ~0.85–1 GB of the 4.29 GB free.
+- **First attempt:** the music check ran after language ID, its VRAM guard released the model, and recognition
+  loaded it again. No gain (131 s).
+- **Result:** Pappa 140 → 111 s (RTF 2.54 → 1.98 in a clean run), same CER. Its verdict became PASS: the REVIEW
+  had come only from Whisper's weak Marathi/Hindi evidence. Full eval: every CER identical; RTF Pappa 2.54 → 2.10,
+  FLEURS mr 1.93 → 1.75, hi 1.99 → 1.92, music 1.58 → 1.55, AMI 1.95 → 1.81.
+- **Also measured:** deterministic cuDNN costs nothing here (the same 12 pieces took 52–54 s either way, with
+  identical output hashes across processes). An earlier "9× slower" reading came from a test that shared the GPU with
+  a running eval.
+- **Check:** `tests/test_core.py::TestEngineCache`; the decision log says "reused indic_transcribe_core".
+- **Rule:** time every stage before optimising; load a model two stages need once; order the GPU users so that the
+  held model and the next one fit together; never measure speed while another job uses the GPU.

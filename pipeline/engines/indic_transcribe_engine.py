@@ -64,6 +64,8 @@ def _build(mod, path: str, dev: str, dtype):
 
 class IndicTranscribeEngine:
     family = "indic_transcribe"
+    keep_loaded = True       # the probe's language ID and recognition share one load per run (E34)
+    lid_trusted = True       # its own language ID tells Marathi from Hindi (5/5 fixtures, P = 1.0): no forced decoding
 
     def __init__(self, engine_id: str):
         require(engine_id)
@@ -71,6 +73,10 @@ class IndicTranscribeEngine:
         self.path = model_dir(engine_id)
         self.asr = None
         self.max_s = 30.0
+
+    def configure(self, params: dict) -> None:
+        """Per-use settings of an already loaded model (the probe loads it with defaults, recognition reuses it)."""
+        self.max_s = float(params.get("piece_max_s", self.max_s))
 
     def uses_gpu(self, device: str, params: dict) -> bool:
         """Where load() will put the model: the runtime device, this engine's setting, a CUDA build of PyTorch."""

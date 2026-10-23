@@ -338,6 +338,8 @@ def _execute(run_dir, run_id, lock, log, custody, plan, passport, copy) -> tuple
 
 
 def _finish(run_dir, run_id, lock, log, custody, plan, passport, exit_name, verdict, reasons, run_metrics):
+    from .engines import cache
+    cache.release()                  # the probe's model may still be loaded if the run stopped early (E34)
     _write_report(run_dir, run_id, verdict, reasons, exit_name, plan, passport, custody, run_metrics)
     errors = validate(log.items, "decisions")
     if errors:
