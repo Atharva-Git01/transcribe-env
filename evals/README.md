@@ -8,11 +8,14 @@
 ```
 { "schema": "trx.truth/1", "id": "...", "audio": "audio.m4a", "audio_sha256": "...", "language": "mr",
   "speakers": [...], "reference_text": "...", "segments": [{"speaker": "...", "text": "..."}],
-  "source": "...", "notes": "...", "scored_until_sec": 720.0 }
+  "source": "...", "notes": "...", "scored_until_sec": 720.0, "spelling": "as_spoken" }
 ```
 Ground truth must be human-verified. Best source: transcripts the owner corrects after real runs.
 `scored_until_sec` (optional): the truth covers only the start of the recording; only output lines that start before
 it are scored, the run itself still processes the whole file (E39). `setup/make_fixture.py --scored-until <s>`.
+`spelling` (optional, default `standard`): `as_spoken` = the transcript writes words as spoken (colloquial forms;
+the owner's way since 2026-10-23). Such a fixture is judged by the **content CER** in the regression check, so a
+change of spelling style in the output is neither a regression nor a gain. Both owner fixtures are `as_spoken`.
 
 ## Metrics (pipeline/metrics.py)
 - **CER** (primary for Marathi/Hindi) and WER, with one fixed normalisation (NFC, lowercase, punctuation and tags

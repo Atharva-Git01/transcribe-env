@@ -4,8 +4,11 @@ this PC only (evals/fixtures/*/ is git-ignored): never push a private recording 
   python setup/make_fixture.py --id call_20261101 --audio "D:/rec/call.m4a" --text "D:/rec/call.txt" --lang mr
 
 The transcript is a UTF-8 text file with one turn per line, `speaker: text`, in the order spoken. Blank lines and
-lines starting with # are skipped. Write it in the output convention (standard spelling, numbers as words, English
-words in Devanagari). The audio is copied unchanged (any format ffmpeg reads); its sha256 goes into truth.json.
+lines starting with # are skipped. Numbers as words, English words in Devanagari. The owner writes the words as
+spoken (colloquial forms, 2026-10-23): `--spelling as_spoken` (the default) makes `trx eval` judge this fixture by
+the content CER, which folds the spelling differences against the standard-spelling output away (E39). Use
+`--spelling standard` for a transcript in standard spelling. The audio is copied unchanged (any format ffmpeg
+reads); its sha256 goes into truth.json.
 If the transcript stops before the recording ends, add `--scored-until <seconds>` (where it stops): otherwise every
 line after that point counts as an error (E39).
 """
@@ -55,6 +58,8 @@ def main() -> int:
     ap.add_argument("--notes", default="")
     ap.add_argument("--scored-until", type=float, default=None, metavar="SECONDS",
                     help="the transcript covers only the start of the recording: score output lines starting before this")
+    ap.add_argument("--spelling", choices=["as_spoken", "standard"], default="as_spoken",
+                    help="how the transcript is spelled (default as_spoken: judged by the content CER)")
     a = ap.parse_args()
     if not re.fullmatch(r"[a-z0-9_]{3,60}", a.id):
         print("--id: use 3-60 lower-case letters, digits or _")
@@ -83,6 +88,7 @@ def main() -> int:
         "source": f"owner recording {audio.name}, manual transcript {text.name} (added {date.today().isoformat()})",
         "notes": a.notes or f"{len(speakers)} speakers, {len(segs)} turns",
     }
+    truth["spelling"] = a.spelling
     if a.scored_until:
         truth["scored_until_sec"] = a.scored_until
     (out / "truth.json").write_text(json.dumps(truth, ensure_ascii=False, indent=2), encoding="utf-8")

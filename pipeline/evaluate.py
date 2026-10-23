@@ -40,6 +40,8 @@ def list_fixtures() -> list[dict]:
             until = truth.get("scored_until_sec")
             if until is not None and not (isinstance(until, (int, float)) and until > 0):
                 problems.append("scored_until_sec must be a positive number of seconds")
+            if truth.get("spelling", "standard") not in ("standard", "as_spoken"):
+                problems.append('spelling must be "standard" or "as_spoken"')
             row.update(ok=not problems, truth=truth, detail="; ".join(problems) or
                        f"{truth.get('language')} · {len(truth['reference_text'])} chars · "
                        f"{f'scored 0-{until:.0f} s · ' if until else ''}{truth.get('notes', '')[:60]}")
@@ -187,6 +189,7 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             "cer_loose": round(cer_level(truth["reference_text"], hyp, t_lang, "loose"), 4),
             "cer_std": round(cer_level(std_ref, hyp, t_lang, "norm"), 4) if std_ref else None,
             "missing_turns": sum(1 for t in turns if not t["hyp"]), "turns": len(turns), "scored_until_sec": until,
+            "spelling": truth.get("spelling", "standard"),
             "hindi_forms": hindi_forms if t_lang == "mr" else None,
             "rtf": round((time.time() - t0) / max(1e-6, float(truth.get("duration_sec") or 1)), 2),
             "monitor": failure_monitor(truth, hyp, hyp_segs, t_lang, turns),
@@ -209,8 +212,14 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
         r["key"] = key
         prev = base.get("scores", {}).get(key)
         r["baseline_cer"] = prev["cer"] if prev else None
-        if prev and r["cer"] > prev["cer"] + NOISE_MARGIN:
-            regressions.append(f"{key}: CER {prev['cer']} -> {r['cer']}")
+        # a truth written as spoken (the owner's choice, 2026-10-23) is judged by the content CER: a change of
+        # spelling style in the output is neither a regression nor a gain
+        if r.get("spelling") == "as_spoken" and prev and prev.get("cer_content") is not None:
+            measure, before, now = "content CER", prev["cer_content"], r["monitor"]["cer_content"]
+        else:
+            measure, before, now = "CER", prev["cer"] if prev else None, r["cer"]
+        if prev and now > before + NOISE_MARGIN:
+            regressions.append(f"{key}: {measure} {before} -> {now}")
     result["regressions"] = regressions
     if save_baseline:
         base.setdefault("scores", {})
@@ -219,6 +228,7 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
                 r["baseline_saved"] = False
                 continue
             base["scores"][r["key"]] = {"cer": r["cer"], "wer": r["wer"], "speaker_acc": r.get("speaker_acc"),
+                                        "cer_content": r["monitor"]["cer_content"],
                                         "env_version": env_version(), "utc": result["utc"]}
         base["env_version"] = env_version()
         write_json(BASELINE, base)

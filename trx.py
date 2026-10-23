@@ -178,7 +178,8 @@ def main(argv: list[str]) -> int:
                     f"{str(r['missing_turns']) + '/' + str(r['turns']):>5} {r['rtf']:>5} {r['verdict']:<7}")
                 if r.get("monitor"):
                     from pipeline.evaluate import monitor_line
-                    out(f"  how: {monitor_line(r['monitor'])}")
+                    out(f"  how: {monitor_line(r['monitor'])}"
+                        + ("  [truth written as spoken: judged by the content CER]" if r.get("spelling") == "as_spoken" else ""))
             for reg in res["regressions"]:
                 out(f"REGRESSION {reg}")
             out(f"saved {res['file']} (+ .md; truth vs output per turn: evals/compare/, this PC only)" + (" and updated evals/baseline.json" if args.save_baseline else ""))

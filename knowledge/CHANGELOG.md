@@ -30,6 +30,8 @@ covers 0:00–12:00): **CER 0.232**, content CER 0.192, spk 0.986 (baseline save
 - Privacy: eval runs are private unless their fixture is open-licensed (a renamed fixture's runs were missed);
   words kept in `library/` on purpose are not leaks. The new fixture got a neutral name (the first held a place and
   a surname from the call).
+- **The owner writes transcripts as spoken** (answered 2026-10-23): truth.json `spelling = as_spoken` (both owner
+  fixtures; `make_fixture.py` default) → the regression check uses the content CER for them.
 - Full failure check of the whole call (private report `evals/compare/failure_check_call_240509_20min.md`): the
   unscored 12:00–20:35 shows the same pattern — long lines fluent, about a third of the listener's short replies
   implausible, names in several forms. New catalogue entries F14–F19.

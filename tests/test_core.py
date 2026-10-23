@@ -439,6 +439,42 @@ class TestEvalRun(unittest.TestCase):
         self.assertEqual((mon["turn_outcomes"], mon["negation_errors"], mon["bad_lines"]), ({"correct": 1}, 0, 0))
         self.assertEqual(rows[5.0]["turn_rows"][0]["what_happened"], "correct")
 
+    def test_truth_written_as_spoken_is_judged_by_content_cer(self):
+        # the owner writes transcripts as spoken (2026-10-23); standard spelling in the output is no regression
+        import json
+        import tempfile
+        from unittest import mock
+        from pipeline import evaluate
+
+        def fake_transcribe(path, forced_recipe=None, case=None, engine=None, lang=None, runs_dir=None):
+            run = runs_dir / f"{case}-1"
+            (run / "out").mkdir(parents=True)
+            (run / "report.json").write_text(json.dumps({"metrics": {"engines": ["x"], "language": "mr"}}))
+            (run / "out" / "transcript.json").write_text(json.dumps({"segments": [
+                {"start": 0.0, "end": 3.0, "text": "ती शाळेत आहे", "speaker": "SPK1"}]}))
+            return "OK", {"run_id": run.name, "verdict": "PASS", "recipe": "r"}
+
+        found = {}
+        for spelling in ("as_spoken", "standard"):
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp = Path(tmp)
+                d = tmp / "fixtures" / "talk"
+                d.mkdir(parents=True)
+                (d / "audio.wav").write_bytes(b"")
+                (d / "truth.json").write_text(json.dumps({
+                    "schema": "trx.truth/1", "id": "talk", "audio": "audio.wav", "language": "mr",
+                    "spelling": spelling, "reference_text": "ती शाळेतये",
+                    "segments": [{"speaker": "A", "text": "ती शाळेतये"}]}))
+                (tmp / "baseline.json").write_text(json.dumps({"scores": {"talk|r|x|mr": {"cer": 0.0,
+                                                                                         "cer_content": 0.0}}}))
+                with mock.patch.multiple(evaluate, TRX_HOME=tmp, FIXTURES=tmp / "fixtures", EVAL_RUNS=tmp / "runs",
+                                         RESULTS=tmp / "results", COMPARE=tmp / "compare",
+                                         BASELINE=tmp / "baseline.json"), \
+                        mock.patch("pipeline.run.transcribe", fake_transcribe):
+                    found[spelling] = evaluate.run_eval()["regressions"]
+        self.assertEqual(found["as_spoken"], [])                    # only the spelling differs: content CER 0
+        self.assertEqual(len(found["standard"]), 1)                 # a standard truth still counts every letter
+
 
 class TestRepetitionFlags(unittest.TestCase):
     NATURAL = ("आज सकाळी आम्ही बाजारात गेलो होतो. तिथे ताज्या भाज्या आणि फळे स्वस्त मिळाली. नंतर आईने घरी "
