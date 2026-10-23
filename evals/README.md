@@ -29,6 +29,10 @@ Ground truth must be human-verified. Best source: transcripts the owner corrects
 - `compare/<same name>.md`: truth vs output per turn. It holds the words of the recordings, so it is git-ignored
   and stays on this PC (E29).
 - `runs/`: the eval runs themselves (git-ignored; old ones may be deleted, `trx eval` rebuilds them).
+- `test_audio/`: the owner's test recordings (15 WhatsApp voice notes, 15.3 min, received 2026-10-23;
+  `manifest.json` = id, original name, sha256, length). Git-ignored. `drafts/` holds the environment's transcript
+  of each (`python setup/make_drafts.py --manifest evals/test_audio/manifest.json`); once the owner has corrected a
+  draft, `setup/make_fixture.py` turns it into a fixture that `trx eval` scores.
 
 ## Accepting a change
 - The target fixture/recipe must improve.

@@ -345,3 +345,11 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Check:** `tests/test_core.py::TestEngineCache`; the decision log says "reused indic_transcribe_core".
 - **Rule:** time every stage before optimising; load a model two stages need once; order the GPU users so that the
   held model and the next one fit together; never measure speed while another job uses the GPU.
+
+## E35 — The review list named every speaker "SPK?"
+- **Seen (2026-10-23, the owner's 15 test recordings):** `review_list.md` showed "SPK?" for every item, while the
+  transcript had SPK1/SPK2. Polish created the review items in its flag loop, before it gave each line the speaker
+  from diarization, so the items kept the track's placeholder label.
+- **Fix:** after the speakers are assigned, polish copies each line's speaker into its review item. Only the review
+  list was affected; transcripts and verdicts were right. Runs made before the fix keep their lists (runs are evidence).
+- **Rule:** anything built from a line must be built, or refreshed, after the line is complete.

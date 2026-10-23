@@ -18,3 +18,5 @@ toolchain/downloads/
 toolchain/*.log
 # private recordings and their transcripts stay on this PC only (never pushed)
 evals/fixtures/*/
+# the owner's test recordings (no transcripts yet; they become fixtures once corrected): this PC only
+evals/test_audio/

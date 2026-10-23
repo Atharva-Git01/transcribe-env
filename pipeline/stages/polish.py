@@ -206,6 +206,10 @@ def run(ctx: Ctx, params: dict) -> None:
                         flagged += 1
                         ctx.review.append({"start": s["start"], "end": s["end"], "speaker": s["speaker"],
                                            "text": s["text"], "reasons": s["flags"]})
+        # review items made before the speakers were known still carry the track label "SPK?" (E35)
+        speaker_at = {(s["start"], s["end"]): s["speaker"] for s in ctx.segments}
+        for r in ctx.review:
+            r["speaker"] = speaker_at.get((r["start"], r["end"]), r["speaker"])
 
     # true stereo: a segment much quieter on its own channel than on the other one is crosstalk (bleed)
     if ctx.metrics.get("diarization") == "channel" and len(ctx.tracks) == 2:
