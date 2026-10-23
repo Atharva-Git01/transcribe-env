@@ -291,3 +291,16 @@ exclude = ["nemo/*"]
 marker = "model.safetensors"
 files = [ { dest = "toolchain/models/indic-transcribe-core/model.safetensors" }, { dest = "toolchain/models/indic-transcribe-core/SOURCE.json" } ]
 extra_mb = 4891
+
+[[item]]
+id = "phoneme_xlsr53_espeak"
+phase = 9
+kind = "hf"
+licence = "Apache-2.0"
+repo = "facebook/wav2vec2-xlsr-53-espeak-cv-ft"
+revision = "2c733782da5604684829819a5eb744c193fe9398"
+dest = "toolchain/models/phoneme-xlsr53-espeak"
+marker = "pytorch_model.bin"
+# multilingual phoneme recognizer (IPA, zero-shot for unseen languages): the acoustic judge of PLAN_v0.9 A3.
+# Weights are a pickle .bin: loaded with weights_only (no code runs); sha256 pinned below and re-checked by doctor --deep.
+files = [ { dest = "toolchain/models/phoneme-xlsr53-espeak/pytorch_model.bin", sha256 = "04366b6c8d24099ef313cf02f0e58d26f5dddfda16edbfc8eb2c713d94a9f551", size = 1263535127 }, { dest = "toolchain/models/phoneme-xlsr53-espeak/SOURCE.json" } ]
