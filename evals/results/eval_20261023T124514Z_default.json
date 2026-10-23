@@ -1,0 +1,128 @@
+{
+  "schema": "trx.eval/1",
+  "env_version": "0.8.0",
+  "utc": "2026-10-23T12:45:14Z",
+  "overrides": {
+    "engine": null,
+    "recipe": null,
+    "lang": null
+  },
+  "rows": [
+    {
+      "fixture": "fleurs_mr_test10",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "meeting_multi_speaker",
+      "engines": [
+        "indic_transcribe_core"
+      ],
+      "language": "mr",
+      "cer": 0.0442,
+      "wer": 0.1209,
+      "seconds": 163.3,
+      "run_id": "eval_fleurs_mr_test10-20261023-181230",
+      "flagged_time_ratio": 0.0972,
+      "speaker_acc": null,
+      "speakers_found": 4,
+      "cer_norm": 0.0261,
+      "cer_loose": 0.0251,
+      "cer_std": null,
+      "missing_turns": 0,
+      "turns": 10,
+      "hindi_forms": 0,
+      "rtf": 1.29,
+      "turn_rows": [
+        {
+          "turn": 1,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.013,
+          "missing": false
+        },
+        {
+          "turn": 2,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK2"
+          ],
+          "cer": 0.097,
+          "missing": false
+        },
+        {
+          "turn": 3,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK3"
+          ],
+          "cer": 0.0,
+          "missing": false
+        },
+        {
+          "turn": 4,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.203,
+          "missing": false
+        },
+        {
+          "turn": 5,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK4"
+          ],
+          "cer": 0.009,
+          "missing": false
+        },
+        {
+          "turn": 6,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.0,
+          "missing": false
+        },
+        {
+          "turn": 7,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.047,
+          "missing": false
+        },
+        {
+          "turn": 8,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK4"
+          ],
+          "cer": 0.036,
+          "missing": false
+        },
+        {
+          "turn": 9,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK3"
+          ],
+          "cer": 0.117,
+          "missing": false
+        },
+        {
+          "turn": 10,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK3"
+          ],
+          "cer": 0.007,
+          "missing": false
+        }
+      ]
+    }
+  ]
+}

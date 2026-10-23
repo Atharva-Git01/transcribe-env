@@ -59,7 +59,7 @@ setup/       the only internet-touching part, run once per tier after the owner'
 | 4 | diarization on every file: by channel (true stereo) or by voice (ERes2NetV2 embeddings, E19); lines split at speaker changes; Demucs music/TV separation (`noisy_field_audio`, E27) | **built** |
 | 5 | weak-operator hardening: one JSON status line + exit code per command, `trx test`, dead-config check, language confirmation, resume of interrupted runs, 10-min chunks for long files | **built** |
 | 6 | Marathi + Hindi word language models and lexicons (IndicCorp v2, CC-0); `--hotwords`; eval fixtures from FLEURS (CC-BY-4.0) | **built** |
-| 7 | Indic engines (0.7.0): **Indic-Transcribe-core** primary for every language, IndicConformer-600M fallback for mr/hi; each speaker turn decoded on its own; numbers as words; normalised CER, missing turns and a per-turn report in `trx eval`; fixtures FLEURS + music and an AMI 4-person meeting | **built** (E24–E28) |
+| 7 | Indic engines (0.7.0): **Indic-Transcribe-core** primary for every language, IndicConformer-600M fallback for mr/hi; each speaker turn decoded on its own; no denoising (0.8.1, E38); numbers as words; normalised CER, missing turns and a per-turn report in `trx eval`; fixtures FLEURS + music and an AMI 4-person meeting | **built** (E24–E28) |
 
 Status, numbers and open questions: `knowledge/CHANGELOG.md`, `QUESTIONS.md` (`MORNING_REPORT.md` is the 0.5.0 report).
 Plans: `PLAN_v0.7.md`; overall: `forensic media suit/doc/TRANSCRIPTION_ENVIRONMENT_PLAN.md`.

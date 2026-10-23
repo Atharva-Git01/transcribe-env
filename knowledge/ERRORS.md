@@ -363,3 +363,52 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   holds several, and short fragments are still caught by the rare-word check.
 - **Rule:** gate commits on the test's own exit status, never on a pipe's; a leak check must ignore what every
   conversation says.
+
+## E37 — Long natural lines were flagged "repetitive", backchannels as "loops"
+- **Seen (2026-10-23, the owner's 15 test recordings):**
+  - 13 lines were flagged "repetitive" and made 6 runs REVIEW and one FAIL (t12, 65 % flagged).
+  - None of those lines repeats a phrase: at most 5 % of their word triples repeat.
+  - The check compared the zlib compression ratio with a fixed 2.4, a Whisper-era limit. Human-written Marathi
+    crosses it by length alone: 8 of 8 pieces of ~370 characters, 58 of 231 overall.
+  - Two "loops" were whole turns of acknowledgement ("हं" four times; the standard spelling "हां" was missing from
+    the list of real repeats).
+- **Fix:**
+  - "repetitive" now means ≥ 35 % of a line's word triples repeat. In human-written text (373 pieces, conversation
+    included) that share is at most 18 %; a phrase said twice gives 50 %, decoder loops 60–85 %.
+  - The compression ratio stays only as a backstop, with a length-aware limit, max(2.4, 2.25 + 0.0016 × characters)
+    + 0.35, that no human-written line reached and the real loops of E30 exceed.
+  - A whole turn of one listed backchannel word, at most 5 times, is no longer a loop; "हां" joined the list.
+- **Result (what-if on the 15 recordings):** 8 PASS / 6 REVIEW / 1 FAIL → 14 PASS / 1 REVIEW. The three remaining
+  loops (a question word, a verb and "OK", each three times) stay flagged until the owner's transcripts confirm them.
+- **Check:** `tests/test_core.py::TestRepetitionFlags`.
+- **Rule:** calibrate every flag on human-written text of the same kind and length before it may change a verdict; a
+  flag that fires on normal speech teaches reviewers to ignore flags.
+
+## E38 — Denoising made Indic-Transcribe worse on every scored file
+- **Seen (2026-10-23):** with denoising off, every scored file improved, and runs got 15–30 % quicker:
+
+  | Fixture | CER, denoised → not denoised |
+  |---|---|
+  | Pappa call | 0.374 → 0.361 |
+  | FLEURS mr | 0.047 → 0.044 |
+  | FLEURS hi | 0.021 → 0.021 |
+  | Music fixture | 0.388 → 0.305 |
+  | AMI meeting | 0.284 → 0.249 |
+  | Mean | 0.223 → 0.196 |
+
+  Recognising the original audio while VAD and diarization kept the denoised track helped less (mean 0.207). On the
+  music and meeting fixtures, VAD on denoised audio loses soft speech (E22).
+- **Why:** Indic-Transcribe was trained on noisy Indian speech. DeepFilterNet (18 dB limit) removes soft speech and
+  leaves artefacts the model never heard, also after Demucs separation. Whisper had preferred denoised audio slightly
+  (0.513 vs 0.518 in 0.6.0); it is only the fallback now.
+- **Fix:** `[denoise] engine = "copy_through"` in every recipe. DeepFilterNet stays installed and selectable.
+  `[recognise] audio = "before_denoise"` exists for a future engine but is not used.
+- **Speaker accuracy** moved too (Pappa 0.975 → 0.966, AMI 0.916 → 0.887). It moved the same way in the variant whose
+  diarization was identical (original-audio recognition: 0.968, 0.891), so the change comes from aligning different
+  text against the truth, not from worse speaker separation.
+- **Also tried:**
+  - Beam search (4 beams) instead of greedy decoding: mean 0.195 vs 0.196, ±0.007 per fixture in both directions.
+    Greedy decoding (the model's own default) was kept.
+  - Wider turn margins (0.3 s instead of 0.1 s): AMI got worse (0.299). Rejected.
+- **Rule:** re-measure every pre-processing step after an engine change (E27 again); a step that helped one engine
+  can hurt the next.

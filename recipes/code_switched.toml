@@ -1,6 +1,6 @@
 [recipe]
 id = "code_switched"
-version = 7
+version = 8
 description = "Speakers mix Marathi, Hindi and English inside sentences."
 when_to_use = "language.code_switch_risk == high (measured from phase 1)."
 when_not_to_use = "Single-language audio — forcing per-segment language ID there adds errors."
@@ -13,7 +13,7 @@ loudnorm_target_lufs = -20.0
 sample_rate = 16000
 
 [denoise]
-engine = "deep_filter"
+engine = "copy_through"           # off since 0.8.1 (E38): Indic-Transcribe hears better without it; "deep_filter" stays available
 fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 18.0

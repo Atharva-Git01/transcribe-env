@@ -80,7 +80,7 @@ def run(ctx: Ctx, params: dict) -> None:
         if memo.is_file() and dn48.is_file() and wav16.is_file():   # resumed run: same input, same settings
             m = json.loads(memo.read_text(encoding="utf-8"))
             if m.get("key") == key and m.get("out16") == sha256_file(wav16):
-                tr.wav16 = wav16
+                tr.wav16_raw, tr.wav16 = tr.wav16, wav16
                 ctx.log.add("denoise", f"track {tr.label}: reused saved result ({m['method']})",
                             "Same input and settings as before the interruption.")
                 continue
@@ -110,6 +110,7 @@ def run(ctx: Ctx, params: dict) -> None:
                     used = "copy_through"
                     break
         raw16 = tr.wav16                                        # the convert stage's (not denoised) 16 kHz track
+        tr.wav16_raw = raw16
         tr.wav16 = ctx.work / f"track{tr.index + 1}_16k_dn.wav"
         ffmpeg(["-i", str(dn48), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tr.wav16)])
         restored = []

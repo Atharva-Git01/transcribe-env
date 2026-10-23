@@ -1,6 +1,6 @@
 [recipe]
 id = "long_file"
-version = 8
+version = 9
 description = "Recordings longer than one hour: recognised in 10-minute chunks cut at silences; an interrupted run resumes from the last saved chunk."
 when_to_use = "container.duration_sec > 3600."
 when_not_to_use = "Short files — chunk boundaries add a small risk of duplicated or lost words."
@@ -13,7 +13,7 @@ loudnorm_target_lufs = -20.0
 sample_rate = 16000
 
 [denoise]
-engine = "deep_filter"
+engine = "copy_through"           # off since 0.8.1 (E38): Indic-Transcribe hears better without it; "deep_filter" stays available
 fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 18.0

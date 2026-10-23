@@ -73,10 +73,12 @@ class IndicTranscribeEngine:
         self.path = model_dir(engine_id)
         self.asr = None
         self.max_s = 30.0
+        self.num_beams = 1
 
     def configure(self, params: dict) -> None:
         """Per-use settings of an already loaded model (the probe loads it with defaults, recognition reuses it)."""
         self.max_s = float(params.get("piece_max_s", self.max_s))
+        self.num_beams = int(params.get("num_beams", 1))   # 1 = greedy, the model's own default
 
     def uses_gpu(self, device: str, params: dict) -> bool:
         """Where load() will put the model: the runtime device, this engine's setting, a CUDA build of PyTorch."""
@@ -111,6 +113,7 @@ class IndicTranscribeEngine:
             dev, dtype, fallback = "cpu", torch.float32, f"cuda load failed: {e}"[:300]
             self.asr = _build(mod, str(self.path), dev, dtype)
         self.max_s = float(params.get("piece_max_s", 30.0))
+        self.num_beams = int(params.get("num_beams", 1))
         info = {"engine": self.id, "device": dev, "compute_type": str(dtype).replace("torch.", ""),
                 "model_sha256": source_info(self.id).get("model_sha256")}
         if fallback:
@@ -155,7 +158,8 @@ class IndicTranscribeEngine:
         x = np.ascontiguousarray(audio[int(a * 16000):int(b * 16000)], dtype=np.float32)
         if len(x) < 1600:
             return []
-        text = self.asr.transcribe(x, lang, mode="native", max_new_tokens=int(min(512, 12 * (b - a) + 32))).strip()
+        beams = {"num_beams": self.num_beams} if self.num_beams > 1 else {}
+        text = self.asr.transcribe(x, lang, mode="native", max_new_tokens=int(min(512, 12 * (b - a) + 32)), **beams).strip()
         if not text:
             return []
         return [{"start": round(a, 3), "end": round(b, 3), "text": text, "avg_logprob": None, "no_speech_prob": None,

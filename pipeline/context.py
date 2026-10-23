@@ -14,6 +14,7 @@ class Track:
     label: str                      # speaker label for this track: "SPK?" (unknown) or SPK1/SPK2 (true stereo)
     wav48: Path | None = None       # 48 kHz mono after convert (input to denoise)
     wav16: Path | None = None       # 16 kHz mono that recognition uses (after denoise if any)
+    wav16_raw: Path | None = None   # the same before denoise (recognition reads it with [recognise] audio = "before_denoise")
     speech: list = field(default_factory=list)   # [(start_s, end_s), …] from the vad stage
     language: str | None = None
 

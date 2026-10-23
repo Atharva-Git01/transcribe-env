@@ -1,6 +1,6 @@
 [recipe]
 id = "true_stereo_call"
-version = 6
+version = 7
 description = "Two genuinely different channels (e.g. call recorder with one party per channel)."
 when_to_use = "channels.layout_class == true_stereo (correlation below 0.99 or level difference above 1 dB)."
 when_not_to_use = "Duplicated mono (identical channels) — that is phone_call_mono."
@@ -13,7 +13,7 @@ loudnorm_target_lufs = -20.0
 sample_rate = 16000
 
 [denoise]
-engine = "deep_filter"
+engine = "copy_through"           # off since 0.8.1 (E38): Indic-Transcribe hears better without it; "deep_filter" stays available
 fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 18.0

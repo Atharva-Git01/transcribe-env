@@ -38,7 +38,29 @@ def _wordlist(path) -> set[str]:
     return {ln.strip() for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")}
 
 
+def repetition(text: str, ratio: float | None, thr: dict) -> str | None:
+    """'repetitive' means the same phrases again and again (E37). Natural speech, human-written: at most 18 % of a
+    line's word triples are repeats; a phrase said twice gives 50 %, decoder loops 60-85 %. The compression ratio is
+    only a backstop for repetition without words, with a length-aware limit no natural text reached (long Devanagari
+    lines compress past the old fixed 2.4 by length alone)."""
+    words = WORD.findall(text)
+    tri = [" ".join(words[i:i + 3]) for i in range(len(words) - 2)]
+    if len(tri) >= int(thr.get("repeat_min_triples", 6)):
+        share = 1.0 - len(set(tri)) / len(tri)
+        if share >= float(thr.get("repeat_share_max", 0.35)):
+            return f"{share:.0%} of its word triples repeat"
+    if ratio:
+        limit = max(float(thr["max_compression_ratio"]), float(thr.get("compression_base", 2.25))
+                    + float(thr.get("compression_per_char", 0.0016)) * len(text)) + float(thr.get("compression_margin", 0.35))
+        if ratio > limit:
+            return f"compression ratio {ratio} above {limit:.2f} for {len(text)} characters"
+    return None
+
+
 def find_loop(tokens: list[str], doubled: set[str]) -> str | None:
+    # a whole short turn of one listed backchannel ("हं हं हं हं") is how people acknowledge, not a loop (E37)
+    if 2 <= len(tokens) <= 5 and len(set(tokens)) == 1 and tokens[0] in doubled:
+        return None
     # same token 3+ times in a row (4+ if it is a known real doubled word)
     run = 1
     for i in range(1, len(tokens)):
@@ -140,8 +162,9 @@ def run(ctx: Ctx, params: dict) -> None:
             flags.append(f"low_confidence (avg_logprob {s['avg_logprob']})")
         if s.get("no_speech_prob") is not None and s["no_speech_prob"] > thr["max_no_speech_prob"]:
             flags.append(f"low_confidence (no_speech_prob {s['no_speech_prob']})")
-        if s.get("compression_ratio") and s["compression_ratio"] > thr["max_compression_ratio"]:
-            flags.append(f"repetitive (compression ratio {s['compression_ratio']})")
+        rep = repetition(s["text"], s.get("compression_ratio"), thr)
+        if rep:
+            flags.append(f"repetitive ({rep})")
         if params.get("doubled_words_guard", True):
             loop = find_loop(tokens, doubled)
             if loop:

@@ -24,7 +24,12 @@ music_background_db = -12.0         # probe: non-vocal energy above this (vs spe
 min_agreement = 0.80                # engine-vs-engine character agreement per window
 min_avg_logprob = -1.0
 max_no_speech_prob = 0.60
-max_compression_ratio = 2.4
+max_compression_ratio = 2.4        # floor of the length-aware limit below (E37)
+compression_base = 2.25             # limit = max(2.4, base + per_char * characters) + margin: no human-written
+compression_per_char = 0.0016       #   Marathi/Hindi/English line reached it (231 pieces); real loops do
+compression_margin = 0.35
+repeat_share_max = 0.35             # 'repetitive' when >= 35 % of a line's word triples are repeats (natural max 18 %)
+repeat_min_triples = 6
 omission_min_speech_sec = 1.5       # VAD speech this long with no text = omission flag
 lexicon_min_count = 3               # a word seen fewer times in the language's corpus (~60-80 M words) is "unknown"
 

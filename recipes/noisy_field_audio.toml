@@ -1,6 +1,6 @@
 [recipe]
 id = "noisy_field_audio"
-version = 8
+version = 9
 description = "CCTV, body-cam, street, vehicle or wind noise; low signal-to-noise."
 when_to_use = "noise.snr_db_estimate < 12 dB."
 when_not_to_use = "Clean recordings — denoising clean audio removes detail and can raise the error rate."
@@ -21,7 +21,7 @@ overlap = 0.25
 apply_if_background_db_above = -15.0   # keep the original when music/TV is quieter than this vs the speech
 
 [denoise]
-engine = "deep_filter"
+engine = "copy_through"           # off since 0.8.1 (E38): Indic-Transcribe hears better without it; "deep_filter" stays available
 fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -45.0
 attenuation_limit_db = 24.0

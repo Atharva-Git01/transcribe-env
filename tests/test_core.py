@@ -365,6 +365,30 @@ class TestEvalRun(unittest.TestCase):
         self.assertIsNone(res["overrides"]["lang"])
 
 
+class TestRepetitionFlags(unittest.TestCase):
+    NATURAL = ("आज सकाळी आम्ही बाजारात गेलो होतो. तिथे ताज्या भाज्या आणि फळे स्वस्त मिळाली. नंतर आईने घरी "
+               "वरणभात केला आणि सगळ्यांनी एकत्र जेवण केले. दुपारी पाऊस आला म्हणून मुले खेळायला बाहेर गेली नाहीत. "
+               "संध्याकाळी काकांचा फोन आला की ते पुढच्या आठवड्यात पुण्याला येणार आहेत. त्यांच्यासाठी पाहुण्यांची "
+               "खोली साफ करायची आहे आणि नवीन चादरी आणायच्या आहेत. रात्री उशिरा आम्ही जुने फोटो पाहत बसलो.")
+
+    def test_repetitive_means_repeated_phrases_not_long_text(self):
+        from pipeline.stages.polish import repetition
+        thr = load_config("thresholds")["verify"]
+        self.assertGreater(len(self.NATURAL), 350)
+        self.assertIsNone(repetition(self.NATURAL, 2.7, thr))       # long natural line: ratio 2.7 is normal (E37)
+        loop = "मी उद्या बाजारात जाणार आहे " + "तिथे भाजी घेणार आहे " * 4
+        self.assertIsNotNone(repetition(loop, None, thr))            # a phrase again and again
+        self.assertIsNotNone(repetition("abc" * 60, 6.0, thr))       # repetition without words: ratio backstop
+
+    def test_backchannel_turn_is_not_a_loop(self):
+        from pipeline.stages.polish import find_loop
+        doubled = {"हं", "हां"}
+        self.assertIsNone(find_loop(["हं"] * 4, doubled))             # a whole turn of acknowledgement
+        self.assertIsNotNone(find_loop(["हं"] * 6, doubled))
+        self.assertIsNotNone(find_loop(["मग"] + ["हं"] * 4, doubled))  # inside longer text the old limit stays
+        self.assertIsNotNone(find_loop(["काय"] * 3, doubled))          # not a listed backchannel
+
+
 class TestEngineCache(unittest.TestCase):
     def test_one_kept_model_loaded_once(self):
         from unittest import mock

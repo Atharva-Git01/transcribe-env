@@ -3,6 +3,31 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.8.1 — 2026-10-23 (quality pass: denoising off, honest flags)
+**Eval (seeded; new baseline saved).** Every fixture better or equal; mean CER 0.223 → **0.196**.
+
+| Fixture | CER 0.8.0 → 0.8.1 | Real-time factor |
+|---|---|---|
+| Pappa call (mr, phone) | 0.374 → **0.361** | 2.10 → 1.63 |
+| FLEURS mr | 0.047 → **0.044** | 1.75 → 1.21 |
+| FLEURS hi | 0.021 → 0.021 | 1.92 → 1.31 |
+| FLEURS mr + music | 0.388 → **0.305** | 1.55 → 1.24 |
+| AMI meeting (en) | 0.284 → **0.249** | 1.81 → 1.26 |
+
+- **Denoising off (E38):** Indic-Transcribe hears better without DeepFilterNet; the quiet-speech check now also runs
+  on audio that still contains the speech (E22), so it recovers quiet stretches that were erased before. They are
+  transcribed and marked `quiet_speech` (soft: REVIEW, never FAIL).
+- Tried and not adopted: beam search (4 beams, ±0.007 per fixture both ways), recognising the original audio while
+  VAD/diarization keep the denoised track (mean 0.207), wider turn margins (AMI worse).
+- **Flags calibrated on human-written text (E37):** "repetitive" now means repeated phrases (≥ 35 % of a line's
+  word triples), not a long line; whole-turn backchannels are not loops. On the owner's 15 recordings: no FAIL
+  any more (it was a false alarm), REVIEW only for quiet speech found by the second check or a possible loop.
+- **The owner's 15 recordings (15.3 min):** moved into `evals/test_audio/` (git-ignored), transcribed with 0.8.1:
+  8 PASS, 7 REVIEW, 0 FAIL; drafts for correction in `evals/test_audio/drafts/` (`setup/make_drafts.py`). Accuracy
+  will be measured once the owner's transcripts arrive.
+- Fixed: the review list named every speaker "SPK?" (E35); the privacy check flagged common phone phrases (E36).
+- Memory need on the GPU 3 → 2 GB (measured: the model adds ~1.5 GB once PyTorch is loaded).
+
 ## 0.8.0 — 2026-10-23 (one model load per run, Indic-Transcribe language ID)
 **Eval (seeded; new baseline saved): every CER identical to 0.7.1, every run quicker.**
 

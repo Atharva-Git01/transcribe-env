@@ -1,6 +1,6 @@
 [recipe]
 id = "_fallback"
-version = 7
+version = 8
 description = "Safe general settings when no specific rule matches."
 when_to_use = "Only when every other rule in config/selection_rules.toml failed to match."
 when_not_to_use = "Never force this recipe on audio that matches a specific rule."
@@ -13,7 +13,7 @@ loudnorm_target_lufs = -20.0
 sample_rate = 16000
 
 [denoise]
-engine = "deep_filter"
+engine = "copy_through"           # off since 0.8.1 (E38): Indic-Transcribe hears better without it; "deep_filter" stays available
 fallback = ["ffmpeg_afftdn", "copy_through"]
 skip_below_dbfs = -42.0
 attenuation_limit_db = 15.0

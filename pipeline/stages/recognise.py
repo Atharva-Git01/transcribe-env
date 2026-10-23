@@ -259,14 +259,17 @@ def run(ctx: Ctx, params: dict) -> None:
     all_segments = []
     try:
         for tr in ctx.tracks:
-            audio, _ = read_wav(tr.wav16)
+            # the recogniser may hear the track before denoising (E38); VAD and diarization used the denoised one
+            raw = params.get("audio", "denoised") == "before_denoise" and tr.wav16_raw is not None
+            audio, _ = read_wav(tr.wav16_raw if raw else tr.wav16)
             speech_sec = sum(e - s for s, e in tr.speech)
             groups = [g for g in ctx.segment_languages if g["track"] == tr.label]
             if params.get("segmentation") == "turns" and ctx.turns and len(ctx.tracks) == 1:
                 # one decode per speaker turn: each turn's text belongs to that turn (PLAN P3/P5)
                 segs = []
+                pad = float(params.get("turn_pad_s", 0.1))      # audio around each turn, so edge words are whole
                 for u in turn_units(ctx.turns, tr.speech):
-                    a, b = max(0.0, u["start"] - 0.1), min(len(audio) / 16000.0, u["end"] + 0.1)
+                    a, b = max(0.0, u["start"] - pad), min(len(audio) / 16000.0, u["end"] + pad)
                     part = engine().transcribe(audio[int(a * 16000):int(b * 16000)], lang, fw, None,
                                                _prompt(prompt_tpl, lang), bool(params.get("word_timestamps", True)))
                     for sg in _shift(part, a):
