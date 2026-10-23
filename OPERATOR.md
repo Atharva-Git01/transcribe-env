@@ -39,7 +39,6 @@ Quote paths that contain spaces.
 | "readable transcript" | `--style readable` (default is forensic verbatim) |
 | "it is Marathi / Hindi / English" | `--lang mr` / `--lang hi` / `--lang en` |
 | "call the case Y" | `--case Y` |
-| "it's urgent / quick draft" | `--fast` (Whisper turbo: since 0.7.1 slower than the default, with about twice the mistakes on Marathi calls) |
 | "these names/places are in it" | `--hotwords <file>` (the owner's text file: one name/place/term per line) |
 | "don't ask about the language" | `--lang auto` (uses the measured guess; a weak guess makes the run REVIEW) |
 
@@ -59,13 +58,13 @@ Quote paths that contain spaces.
 
 ## What to expect
 
-- A 1-minute phone call takes about 2.5 minutes (Indic-Transcribe on the GPU + speaker separation). `--fast` is now
-  slower (about 3.7 minutes) and makes about twice as many mistakes in Marathi.
+- A 1-minute phone call takes about 2.5 minutes (Indic-Transcribe on the GPU + speaker separation). There is no
+  quicker mode: `--fast` was removed in 0.7.2 because the default became the fastest good option.
 - `REVIEW` is normal for hard phone audio: it means some lines are uncertain, not that the run broke.
 - If the last line says `MODEL_MISSING`: a model folder in `toolchain/models/` is missing. Report it;
   do not try to fix it.
 - If the last line says `DISK_LOW`: report it; do not delete anything.
-- If the USB stick (D:) is not plugged in: nothing changes for normal runs; `--fast` runs without the Gemma cleanup
-  (the decision log says so).
+- If the USB stick (D:) is not plugged in: nothing changes for normal runs (only the fallback engines and the Gemma
+  cleanup of Whisper output are missing; the decision log says so if one is needed).
 - If the last line says `MEMORY_LOW`: the speech model needs about 3 GB of free memory (5.5 GB without the GPU). Ask the owner to close big
   programs (web browsers first) or restart the PC, then run the same command again.

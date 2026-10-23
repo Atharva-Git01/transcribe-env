@@ -24,10 +24,9 @@ offline.install()
 
 HELP = """trx {v} — local, offline transcription environment
 
-  trx transcribe <file> [--lang mr|hi|en|auto] [--fast] [--recipe ID] [--style verbatim|readable] [--case NAME]
+  trx transcribe <file> [--lang mr|hi|en|auto] [--recipe ID] [--style verbatim|readable] [--case NAME]
                                    full run: copy + hash, probe, choose recipe, plan, run stages, report.
                                    Without --lang it shows the detected language and asks first.
-                                   --fast = Whisper turbo: only ~10 % quicker since 0.7.0, about twice the errors in Marathi
                                    --hotwords FILE = names/places/terms of this case, one per line
                                    An interrupted run of the same file continues where it stopped.
   trx watch [--once] [--interval SECONDS]
@@ -134,9 +133,12 @@ def main(argv: list[str]) -> int:
                                passport=args.out or None)
 
         if cmd == "transcribe":
+            if args.fast:   # removed in 0.7.2 (owner): the default is the fastest good option since the GPU switch
+                raise TrxError("USAGE", "--fast was removed in 0.7.2: the default run is now the fastest good option "
+                                        "(Indic-Transcribe on the GPU). Run the same command without --fast.")
             from pipeline.langcheck import confirm
             from pipeline.run import find_unfinished, resume, transcribe
-            engine = "faster_whisper_large_v3_turbo" if args.fast else None
+            engine = None
             from pipeline.hotwords import read_hotwords
             hot = read_hotwords(args.hotwords) if args.hotwords else None
             same = {k: v for k, v in {"recipe": args.recipe, "style": args.style, "engine": engine, "hotwords": hot,
@@ -148,8 +150,7 @@ def main(argv: list[str]) -> int:
             else:
                 lang, lang_how = confirm(args.file, args.lang)
                 name, info = transcribe(args.file, args.recipe, args.style, lang, args.case, engine=engine,
-                                        lang_how=lang_how, engine_how="--fast (turbo)" if args.fast else None,
-                                        hotwords=hot)
+                                        lang_how=lang_how, hotwords=hot)
             out(f"run {info['run_id']}: {info['verdict']} — recipe {info['recipe']}")
             for r in info["reasons"]:
                 out(f"  {r}")

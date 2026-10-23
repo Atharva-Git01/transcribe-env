@@ -53,7 +53,7 @@ segment_en_min = 0.80                  # per-group LID: a group becomes English 
 # 0.7.0 (eval 2026-10-23, same pipeline, each speaker turn decoded on its own): Indic-Transcribe-core beats large-v3 on
 # every fixture - CER Pappa 0.513 -> 0.379, FLEURS mr 0.273 -> 0.049, hi 0.072 -> 0.021, AMI (en) 0.308 -> 0.284.
 # IndicConformer-600M is the first fallback for mr/hi (0.377 / 0.056 / 0.034; it has no English). Whisper stays as the
-# last fallback, for --fast and for language ID.
+# last fallback and for language ID.
 mr = ["indic_transcribe_core", "indic_conformer_600m", "faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
 hi = ["indic_transcribe_core", "indic_conformer_600m", "faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
 en = ["indic_transcribe_core", "faster_whisper_large_v3_turbo", "faster_whisper_large_v3"]

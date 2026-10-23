@@ -4,11 +4,11 @@
 |---|---|---|---|---|
 | medium | 1.5 GB (cached) | ~1.5–2 GB | medium | last fallback for unknown languages |
 | large-v3 | ~3.1 GB | ~3 GB (tight) | slow | fallback after the Indic engines (primary until 0.6.0) |
-| large-v3-turbo | ~1.6 GB | ~2 GB | ~6–8× faster than large-v3 | `--fast`; language ID in the probe and per speech group |
+| large-v3-turbo | ~1.6 GB | ~2 GB | ~6–8× faster than large-v3 | language ID in the probe and per speech group (`--fast` until 0.7.1) |
 
 Since 0.7.0 Indic-Transcribe-core is the primary engine for every language (knowledge/ERRORS.md E24). Gemma cleanup
 still runs on Whisper output (E26). Demucs music separation made Whisper worse on the music fixture; it stays on
-because the primary engine gains from it (E27), so `--fast` on music audio is weaker still.
+because the primary engine gains from it (E27).
 
 - Turbo has a 4-layer decoder (vs 32): faster, but published guides report lower accuracy on low-resource languages.
   No published Marathi head-to-head was found (2026-10-16) — `trx eval` decides.

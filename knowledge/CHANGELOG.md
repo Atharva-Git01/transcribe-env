@@ -3,6 +3,16 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.7.2 — 2026-10-23 (`--fast` removed)
+- **`--fast` removed (owner's decision).** As Whisper turbo it had become slower than the default (RTF 3.74 vs 2.54)
+  and twice as wrong (CER 0.771 vs 0.374). Redefining it as "long speech pieces" was measured first and was not faster
+  on the GPU: Pappa 143 s vs 140 s, AMI RTF 1.84 vs 1.95. Long pieces wrote better words (Pappa 0.361 vs 0.374, AMI
+  0.248 vs 0.284) but put much more text on the wrong speaker (0.695 vs 0.975, 0.713 vs 0.916; E28).
+  `trx transcribe --fast` now stops with USAGE and says why.
+- **Where a 1-minute call's 140 s go (GPU):** probe 55 s (Whisper language ID, music check, speaker estimate),
+  denoise 17 s, diarization 16 s, model load 27 s, recognition 22 s. Next step: Indic-Transcribe's own language ID
+  and one model load per run.
+
 ## 0.7.1 — 2026-10-23 (GPU first; disk space)
 **Eval (seeded; new baseline saved).** Same configuration as 0.7.0, with Indic-Transcribe and Demucs on the GPU:
 

@@ -54,7 +54,7 @@ setup/       the only internet-touching part, run once per tier after the owner'
 |---|---|---|
 | 0 | skeleton, probe, recipe selection, plan, custody, doctor, explain | **built** |
 | 1 | own venv (hash-locked); convert, denoise (DeepFilterNet3 → ffmpeg afftdn), VAD (Silero), 2-step language ID, faster-whisper on the GPU (CUDA 12), polish flags, gate, export | **built** |
-| 2 | large-v3 + turbo (`--fast`); verify stage (cross-check; off: with Whisper as the second engine it flagged 96 % of the phone call and 60 % of clean read Marathi in 0.7.0); `trx eval` scoring + baseline | **built** |
+| 2 | large-v3 + turbo; verify stage (cross-check; off: with Whisper as the second engine it flagged 96 % of the phone call and 60 % of clean read Marathi in 0.7.0); `trx eval` scoring + baseline | **built** |
 | 3 | Gemma 3 4B via llama.cpp `llama-server` (Vulkan) — suggestions filtered by a word gate + language model | **built, ON for Whisper output only** (E17, E26) |
 | 4 | diarization on every file: by channel (true stereo) or by voice (ERes2NetV2 embeddings, E19); lines split at speaker changes; Demucs music/TV separation (`noisy_field_audio`, E27) | **built** |
 | 5 | weak-operator hardening: one JSON status line + exit code per command, `trx test`, dead-config check, language confirmation, resume of interrupted runs, 10-min chunks for long files | **built** |
@@ -66,14 +66,14 @@ Plans: `PLAN_v0.7.md`; overall: `forensic media suit/doc/TRANSCRIPTION_ENVIRONME
 
 ## Hardware notes (this machine)
 - RTX 3050 Laptop 4 GB: one model on the GPU at a time (load → run → unload). `config/defaults.toml [runtime] device`.
-  GPU first (owner's rule): Indic-Transcribe (bf16, ~2.5 GB of VRAM), Demucs, Whisper (language ID, `--fast`) and
+  GPU first (owner's rule): Indic-Transcribe (bf16, ~2.5 GB of VRAM), Demucs, Whisper (language ID) and
   Gemma run on the GPU, one at a time. Small helpers stay on the CPU: DeepFilterNet, Silero VAD, speaker embeddings.
   A 1-minute phone call takes about 2.5 minutes. A run needs about 3 GB of free memory (15.6 GB of RAM here);
   below that it stops with `MEMORY_LOW` (E31, E33).
 - The models every run needs are on C: (`toolchain/models/`). The fallbacks (IndicConformer, Whisper large-v3 and
   medium) and Gemma 3 live on the D: USB stick, linked by directory junctions (`D:\transcribe-env-models\README.txt`).
-  With the stick unplugged, normal runs are unaffected, `trx doctor` stays READY and `--fast` runs without the Gemma
-  cleanup.
+  With the stick unplugged, normal runs are unaffected, `trx doctor` stays READY; only the fallback engines and the
+  Gemma cleanup of Whisper output are missing.
 
 ## Licences and credit
 - Built with **Indic-Transcribe-core from Bodhan AI / AI4Bharat** (Indic Open Model License v1.0). Free to self-host,

@@ -251,6 +251,8 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   each diarization turn (same-speaker turns merged up to 30 s) is decoded on its own. CER 0.379, speaker accuracy
   **0.975**, 4 of 26 turns missing. The model card also says shorter pieces cost a little accuracy; the owner's rule
   (diarization on every file) makes speakers the priority.
+- **Re-measured on the GPU (0.7.2):** long pieces wrote better words on two fixtures (Pappa 0.361 vs 0.374, AMI
+  0.248 vs 0.284) but speakers right fell to 0.695 / 0.713, and they were not faster. Per-turn decoding stays.
 - **Rule:** an engine without word timings is always decoded per speaker turn.
 
 ## E29 — The words of the private call were pushed to GitHub inside eval results
