@@ -159,6 +159,11 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Limit:** inside ONE speaker the halves can be as dissimilar (cos 0.62–0.75) as two speakers (0.67), so the number
   of speakers cannot be estimated reliably from 1 s windows. Phone calls are fixed at 2 parties; other recipes
   estimate and the report says "estimated".
+- **Update 2026-10-23 (AMI 4-person meeting fixture):** with `split_cosine = 0.6` the meeting was estimated as ONE
+  speaker (spk 0.628). Counting experiment (divisive split vs silhouette vs eigengap): only the divisive split with a
+  threshold of 0.65–0.70 gets AMI → 3 (the 4th person has < 5 s of speech in the window), Pappa → 2 and a
+  single speaker → 1. Silhouette cannot answer "1"; eigengap said 3 for one speaker. Now `split_cosine = 0.68`:
+  AMI spk **0.895**, 3 speakers found.
 - **Check:** `trx eval` column `spk` (speaker accuracy; needs a fixture whose truth has ≥ 2 speakers).
 - **Rule:** a diarization change needs a `spk` result, like an ASR change needs CER.
 

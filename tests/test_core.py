@@ -273,6 +273,26 @@ class TestTurnUnits(unittest.TestCase):
         self.assertEqual(long[0]["end"], 25.0)
 
 
+class TestEvalPrivacy(unittest.TestCase):
+    def test_results_carry_no_words(self):
+        from pipeline.evaluate import turns_without_text
+        rows = turns_without_text([{"turn": 1, "ref_speaker": "A", "ref": "मी उद्या येतो", "hyp": "मी उद्या येतो",
+                                    "hyp_speakers": ["SPK1"], "cer": 0.0},
+                                   {"turn": 2, "ref_speaker": "B", "ref": "हो", "hyp": "", "hyp_speakers": [], "cer": 1.0}])
+        self.assertTrue(all("ref" not in r and "hyp" not in r for r in rows))
+        self.assertEqual([r["missing"] for r in rows], [False, True])
+
+    def test_owner_transcript_lines(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("make_fixture", HOME / "setup" / "make_fixture.py")
+        mf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mf)
+        segs, bad = mf.parse("# call 1\nमी: नमस्कार, कसे आहात?\n\nबाबा: ठीक आहे: आणि तू?\nno colon here\n")
+        self.assertEqual(segs, [{"speaker": "मी", "text": "नमस्कार, कसे आहात?"},
+                                {"speaker": "बाबा", "text": "ठीक आहे: आणि तू?"}])
+        self.assertEqual(bad, [5])
+
+
 class TestOfflineGuard(unittest.TestCase):
     def test_blocks_public_hosts(self):
         offline.install()

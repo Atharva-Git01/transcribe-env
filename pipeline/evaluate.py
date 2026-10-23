@@ -17,7 +17,8 @@ from .stages import IMPLEMENTED
 
 FIXTURES = TRX_HOME / "evals" / "fixtures"
 EVAL_RUNS = TRX_HOME / "evals" / "runs"
-RESULTS = TRX_HOME / "evals" / "results"
+RESULTS = TRX_HOME / "evals" / "results"              # pushed to GitHub: numbers only, never a fixture's words
+COMPARE = TRX_HOME / "evals" / "compare"              # per-turn text (truth vs output): this PC only (git-ignored)
 BASELINE = TRX_HOME / "evals" / "baseline.json"
 NOISE_MARGIN = 0.01
 
@@ -50,8 +51,15 @@ def hypothesis_text(run_dir) -> str:
     return " ".join(s["text"] for s in read_json(p)["segments"])
 
 
-def _write_comparison(path, result: dict) -> None:
-    """Human-readable per-turn comparison (truth vs output) for every fixture of this eval."""
+def turns_without_text(turns: list[dict]) -> list[dict]:
+    """Turn rows as they may leave this PC: numbers and speaker labels, no words of the recording."""
+    return [dict({k: v for k, v in t.items() if k not in ("ref", "hyp")}, missing=not t.get("hyp"))
+            for t in turns]
+
+
+def _write_comparison(path, result: dict, text: bool) -> None:
+    """Per-turn comparison for every fixture of this eval. text=True (evals/compare/, this PC only) shows the truth and
+    the output side by side; text=False (evals/results/, pushed) keeps only speakers and per-turn CER."""
     lines = [f"# Eval {result['utc']} — environment {result['env_version']}", "",
              "| fixture | engine | CER | normalised | loose | std | WER | spk | missing turns | Hindi forms | RTF | verdict |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -63,11 +71,18 @@ def _write_comparison(path, result: dict) -> None:
     for r in result["rows"]:
         if not r.get("turn_rows"):
             continue
-        lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | truth | output | output speakers | turn CER |",
-                  "|---|---|---|---|---|---|"]
-        for t in r["turn_rows"]:
-            lines.append(f"| {t['turn']} | {t['ref_speaker']} | {t['ref']} | {t['hyp'] or '— missing —'} | "
-                         f"{', '.join(t['hyp_speakers']) or '-'} | {t['cer']} |")
+        if text:
+            lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | truth | output | output speakers | turn CER |",
+                      "|---|---|---|---|---|---|"]
+            for t in r["turn_rows"]:
+                lines.append(f"| {t['turn']} | {t['ref_speaker']} | {t['ref']} | {t['hyp'] or '— missing —'} | "
+                             f"{', '.join(t['hyp_speakers']) or '-'} | {t['cer']} |")
+        else:
+            lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | output speakers | turn CER |", "|---|---|---|---|"]
+            for t in r["turn_rows"]:
+                missing = t["missing"] if "missing" in t else not t.get("hyp")
+                lines.append(f"| {t['turn']} | {t['ref_speaker']} | "
+                             f"{'— missing —' if missing else ', '.join(t['hyp_speakers']) or '-'} | {t['cer']} |")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -121,9 +136,11 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
     result = {"schema": "trx.eval/1", "env_version": env_version(), "utc": utc_now(),
               "overrides": {"engine": engine, "recipe": recipe, "lang": lang}, "rows": rows}
     RESULTS.mkdir(parents=True, exist_ok=True)
+    COMPARE.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"eval_{result['utc'].replace(':', '').replace('-', '')}_{engine or 'default'}.json"
-    write_json(out, result)
-    _write_comparison(out.with_suffix(".md"), result)
+    write_json(out, dict(result, rows=[dict(r, turn_rows=turns_without_text(r["turn_rows"])) for r in rows]))
+    _write_comparison(out.with_suffix(".md"), result, text=False)
+    _write_comparison(COMPARE / out.with_suffix(".md").name, result, text=True)
     result["file"] = str(out.relative_to(TRX_HOME))
     base = read_json(BASELINE) if BASELINE.is_file() else {"scores": {}}
     regressions = []

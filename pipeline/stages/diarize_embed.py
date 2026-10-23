@@ -170,7 +170,7 @@ def diarize(audio: np.ndarray, speech, params: dict) -> tuple[list[dict], dict]:
         lab, C = kmeans(X, min(k, len(X)))
         how = f"fixed: {k} speakers (recipe)"
     else:
-        lab = estimate(X, hop, int(params.get("max_speakers", 4)), float(params.get("split_cosine", 0.6)),
+        lab = estimate(X, hop, int(params.get("max_speakers", 4)), float(params.get("split_cosine", 0.68)),
                        float(params.get("min_speaker_s", 5.0)))
         k = int(lab.max()) + 1
         C = np.stack([X[lab == j].mean(0) for j in range(k)])

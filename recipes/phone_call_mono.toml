@@ -2,7 +2,7 @@
 
 [recipe]
 id = "phone_call_mono"
-version = 6
+version = 7
 description = "Telephone-band call recorded on one channel (or two identical channels). Marathi/Hindi likely."
 when_to_use = "bandwidth.class == narrowband; layout mono or duplicated_mono; SNR >= 12 dB."
 when_not_to_use = "Two genuinely different channels (use true_stereo_call); heavy noise (noisy_field_audio)."
@@ -73,6 +73,19 @@ condition_on_previous_text = false   # stops one bad window from contaminating t
 repetition_penalty = 1.0
 no_repeat_ngram_size = 0
 hallucination_silence_threshold = 2.0
+
+[recognise.indic_conformer]
+decoder = "rnnt"                  # "rnnt" (Pappa CER 0.383) | "ctc" (0.390, gives word timings)
+segmentation = "turns"            # RNNT has no word timings: decode each speaker turn on its own
+piece_max_s = 20.0
+threads = 8
+
+[recognise.indic_transcribe]
+segmentation = "turns"            # single-speaker model (model card): decode each speaker turn on its own
+piece_max_s = 30.0                # the model was trained on clips of up to 30 s
+threads = 8
+dtype = "bfloat16"
+device = "auto"                   # "auto" = GPU when it fits in memory, else CPU
 
 [verify]
 required = false                  # runs only when config/defaults.toml [engines.cross_check].enabled = true

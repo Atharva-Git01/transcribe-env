@@ -110,4 +110,10 @@ class FasterWhisperEngine:
 def make(engine_id: str):
     if engine_id.startswith("faster_whisper"):
         return FasterWhisperEngine(engine_id)
+    if engine_id.startswith("indic_conformer"):
+        from .indic_conformer_engine import IndicConformerEngine
+        return IndicConformerEngine(engine_id)
+    if engine_id.startswith("indic_transcribe"):
+        from .indic_transcribe_engine import IndicTranscribeEngine
+        return IndicTranscribeEngine(engine_id)
     raise TrxError("STAGE_NOT_INSTALLED", f"no adapter for engine '{engine_id}'")

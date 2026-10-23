@@ -134,6 +134,19 @@ def install(phase: int) -> None:
                 if not src.is_file():
                     raise SystemExit(f"{it['id']}: source {src} not found; see setup/README.md for the alternative")
                 os.link(src, dst)
+        elif kind == "hf":
+            # gated Hugging Face repo at a pinned revision; needs the owner's own `hf auth login` first
+            from huggingface_hub import snapshot_download
+            dest = HOME / it["dest"]
+            snapshot_download(it["repo"], revision=it["revision"], local_dir=str(dest),
+                              ignore_patterns=it.get("exclude") or None)
+            files = {}
+            for f in sorted(p for p in dest.rglob("*") if p.is_file() and ".cache" not in p.parts and p.name != "SOURCE.json"):
+                files[f.relative_to(dest).as_posix()] = {"sha256": sha256(f), "size": f.stat().st_size}
+            (dest / "SOURCE.json").write_text(json.dumps(
+                {"id": it["id"], "licence": it.get("licence"), "source": f"https://huggingface.co/{it['repo']}",
+                 "revision": it["revision"], "model_sha256": files[it["marker"]]["sha256"], "files": files},
+                indent=2), encoding="utf-8")
         elif kind == "build":
             # download exact byte ranges (sha256-checked) into a fresh folder, run the builder, drop the raw input
             work = HOME / "toolchain" / "downloads" / f"{it['id']}-build"
@@ -169,7 +182,7 @@ def verify() -> int:
 
 def write_sources() -> None:
     for it in load():
-        if it["kind"] in ("venv", "build") or not present(it):   # builders write their own SOURCE.json
+        if it["kind"] in ("venv", "build", "hf") or not present(it):   # these write their own SOURCE.json
             continue
         dest_dir = HOME / it.get("source_json_dir", Path(it["files"][0]["dest"]).parent.as_posix())
         rec = {"id": it["id"], "licence": it.get("licence"), "source": it.get("url") or it.get("page"),

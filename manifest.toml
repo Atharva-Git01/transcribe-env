@@ -124,13 +124,27 @@ note = 'most accurate engine here (default for mr/hi); backup copy on D:\transcr
 id = "indic_conformer_600m"
 kind = "model"
 phase = 2
-status = "not_installed"
-licence = "MIT (model card) — repo is gated behind a free Hugging Face login"
-commercial_ok = "verify"
+status = "installed"
+licence = "MIT"
+commercial_ok = "yes"
 path = "toolchain/models/indic-conformer-600m-multilingual"
-marker = "model.onnx"
-source = "https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual"
-note = "NOT installed: needs an HF login (gated) and its runtime pulls torch (~1 GB). Owner decision — see QUESTIONS.md Q1"
+marker = "assets/encoder.onnx"
+source = "https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual (revision 2a77d305)"
+size_mb = 2560
+note = "AI4Bharat Conformer, hybrid CTC + RNNT, 22 Indic languages (no English). onnxruntime CPU + TorchScript mel preprocessor (torch CPU). Gated (auto) - downloaded with the owner's HF login."
+
+[[component]]
+id = "indic_transcribe_core"
+kind = "model"
+phase = 2
+status = "installed"
+licence = "Indic Open Model License v1.0 (Bodhan AI / AI4Bharat); base nvidia/canary-1b-v2"
+commercial_ok = "conditional"
+path = "toolchain/models/indic-transcribe-core"
+marker = "model.safetensors"
+source = "https://huggingface.co/bodhan-ai/indic-transcribe-core (revision e083ab7d)"
+size_mb = 4891
+note = "Canary FastConformer+Transformer, 1.2B, 25+ languages incl. Indian English, code-mixed, native script. Self-hosting free; hosting for others needs Bodhan AI's written approval; credit 'Built with Indic-Transcribe-core from Bodhan AI / AI4Bharat'. CPU fp32 here (torch CPU build)."
 
 [[component]]
 id = "indicwhisper"

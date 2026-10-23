@@ -177,7 +177,7 @@ def main(argv: list[str]) -> int:
                     f"{str(r['missing_turns']) + '/' + str(r['turns']):>5} {r['rtf']:>5} {r['verdict']:<7}")
             for reg in res["regressions"]:
                 out(f"REGRESSION {reg}")
-            out(f"saved {res['file']} (+ per-turn comparison .md)" + (" and updated evals/baseline.json" if args.save_baseline else ""))
+            out(f"saved {res['file']} (+ .md; truth vs output per turn: evals/compare/, this PC only)" + (" and updated evals/baseline.json" if args.save_baseline else ""))
             return status_line(cmd, "OK" if not res["regressions"] else "EVAL_REGRESSION",
                                results=res["file"], regressions=len(res["regressions"]))
 

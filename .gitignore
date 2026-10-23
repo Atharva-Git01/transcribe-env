@@ -11,6 +11,8 @@ __pycache__/
 *.pyc
 *.tmp
 evals/runs/
+# truth vs output per turn: holds the words of the fixtures (private recordings): this PC only
+evals/compare/
 setup/logs/
 toolchain/downloads/
 toolchain/*.log

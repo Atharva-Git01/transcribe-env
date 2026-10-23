@@ -20,6 +20,21 @@ def _prompt(template: str, lang: str) -> str | None:
     return p.read_text(encoding="utf-8").strip() if p.is_file() else None
 
 
+FAMILY_TABLE = {"faster_whisper": "faster_whisper", "indic_conformer": "indic_conformer",
+                "indic_transcribe": "indic_transcribe"}
+
+
+def engine_params(params: dict, engine_id: str) -> dict:
+    """The recipe's settings table for this engine's family (recognise.faster_whisper / .indic_conformer / …)."""
+    fam = next((f for f in FAMILY_TABLE if engine_id.startswith(f)), "faster_whisper")
+    return dict(params.get(FAMILY_TABLE[fam], {}))
+
+
+def segmentation_of(params: dict, engine_id: str) -> str:
+    """An engine table may set its own segmentation (e.g. "turns" for engines without word timings)."""
+    return engine_params(params, engine_id).get("segmentation") or params.get("segmentation", "vad_concat")
+
+
 def engine_choices(table: dict, lang: str) -> list[str]:
     """An engine-table entry is one engine id or an ordered list (first installed wins, e.g. when a model folder is missing)."""
     v = table.get(lang) or table.get("unknown") or []
@@ -197,7 +212,15 @@ def _plausible(seg: dict, params: dict) -> bool:
 
 
 def _words_in(segs: list[dict], a: float, b: float) -> int:
-    return sum(1 for sg in segs for w in (sg.get("words") or []) if a <= (w["start"] + w["end"]) / 2 <= b)
+    """Words whose midpoint is inside [a, b]; a segment without word timings counts as one word if it overlaps."""
+    n = 0
+    for sg in segs:
+        ws = sg.get("words") or []
+        if ws:
+            n += sum(1 for w in ws if a <= (w["start"] + w["end"]) / 2 <= b)
+        elif sg.get("text") and min(b, sg["end"]) - max(a, sg["start"]) > 0.1:
+            n += 1
+    return n
 
 
 def run(ctx: Ctx, params: dict) -> None:
@@ -205,7 +228,9 @@ def run(ctx: Ctx, params: dict) -> None:
     table = params["engine_table_primary"]
     per_segment = bool(ctx.segment_languages)
     eng_id, skipped = _engine_for(table, "mixed" if per_segment else lang)
-    fw = dict(params.get("faster_whisper", {}))
+    fw = engine_params(params, eng_id)
+    fw.pop("segmentation", None)
+    params = dict(params, segmentation=segmentation_of(params, eng_id))
     if params.get("hotwords"):
         fw["hotwords"] = " ".join(params["hotwords"])
     vad = ctx.stage_params("vad") or None
@@ -281,7 +306,7 @@ def run(ctx: Ctx, params: dict) -> None:
                 if reused:
                     ctx.log.add("recognise", f"track {tr.label}: reused {reused} of {len(spans)} saved chunk(s)",
                                 "These chunks were finished before the interruption and match the plan exactly.")
-            if params.get("recover_missed_turns", True) and segs:
+            if params.get("recover_missed_turns", True) and segs and params.get("segmentation") != "turns":
                 # a speaker turn (or speech region) with no recognised words is decoded again on its own (PLAN P3)
                 units = ([t for t in ctx.turns] if ctx.turns and len(ctx.tracks) == 1 else
                          [{"start": a0, "end": b0, "speaker": tr.label} for a0, b0 in tr.speech])

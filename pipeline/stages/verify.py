@@ -31,7 +31,9 @@ def run(ctx: Ctx, params: dict) -> None:
         ctx.log.add("verify", "skipped", "No installed cross-check engine different from the primary engine.")
         return
     min_agree = float(load_config("thresholds")["verify"]["min_agreement"])
-    fw = dict(rec.get("faster_whisper", {}))
+    from .recognise import engine_params
+    fw = engine_params(rec, eng_id)
+    fw.pop("segmentation", None)
     vad = ctx.stage_params("vad") or None
     eng = make(eng_id)
     info = eng.load(gpu.choose_device(), fw)

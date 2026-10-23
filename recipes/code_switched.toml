@@ -1,6 +1,6 @@
 [recipe]
 id = "code_switched"
-version = 6
+version = 7
 description = "Speakers mix Marathi, Hindi and English inside sentences."
 when_to_use = "language.code_switch_risk == high (measured from phase 1)."
 when_not_to_use = "Single-language audio — forcing per-segment language ID there adds errors."
@@ -41,7 +41,7 @@ per_segment = true                # language decided per VAD segment, never one 
 mode = "embed_cluster"            # speaker embeddings on 1 s windows, clustered + smoothed (E19)
 num_speakers = 0                  # 0 = estimate (marked "estimated" in the report)
 max_speakers = 4
-split_cosine = 0.6                # estimate: split a cluster while its halves are less similar than this
+split_cosine = 0.68               # estimate: split while the halves are less similar than this (0.65-0.70 right on AMI 4->3, Pappa 2, 1 speaker; E19)
 min_speaker_s = 5.0               # estimate: a speaker needs at least this much speech
 window_s = 1.0
 hop_s = 0.25
@@ -74,6 +74,19 @@ condition_on_previous_text = false
 repetition_penalty = 1.0
 no_repeat_ngram_size = 0
 hallucination_silence_threshold = 2.0
+
+[recognise.indic_conformer]
+decoder = "rnnt"                  # "rnnt" (Pappa CER 0.383) | "ctc" (0.390, gives word timings)
+segmentation = "turns"            # RNNT has no word timings: decode each speaker turn on its own
+piece_max_s = 20.0
+threads = 8
+
+[recognise.indic_transcribe]
+segmentation = "turns"            # single-speaker model (model card): decode each speaker turn on its own
+piece_max_s = 30.0                # the model was trained on clips of up to 30 s
+threads = 8
+dtype = "bfloat16"
+device = "auto"                   # "auto" = GPU when it fits in memory, else CPU
 
 [verify]
 required = false

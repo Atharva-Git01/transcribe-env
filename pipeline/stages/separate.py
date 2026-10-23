@@ -77,8 +77,10 @@ def run(ctx: Ctx, params: dict) -> None:
         decision = (f"applied: background {rel:.1f} dB vs speech (> {threshold} dB)" if applied else
                     f"kept the original: background only {rel:.1f} dB vs speech (<= {threshold} dB)")
         if applied:
+            keep = params.get("background_keep_db")          # None: voice only; e.g. -12: background turned down 12 dB
+            out = vocals if keep is None else vocals + background * (10 ** (float(keep) / 20))
             tmp = ctx.work / f"track{tr.index + 1}_vocals_44k1.wav"
-            write_wav(tmp, vocals, sr)
+            write_wav(tmp, out, sr)
             ffmpeg(["-i", str(tmp), "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(out48)])
             tmp.unlink(missing_ok=True)
             tr.wav48 = out48

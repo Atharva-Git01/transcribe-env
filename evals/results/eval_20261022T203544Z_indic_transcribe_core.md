@@ -1,0 +1,36 @@
+# Eval 2026-10-22T20:35:44Z — environment 0.6.0
+
+| fixture | engine | CER | normalised | loose | std | WER | spk | missing turns | Hindi forms | RTF | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| pappa_260603_211622 | indic_transcribe_core | 0.3789 | 0.3706 | 0.3421 | 0.3 | 0.7188 | 0.9752 | 4/26 | 0 | 3.65 | REVIEW |
+
+## pappa_260603_211622
+
+| # | truth speaker | output speakers | turn CER |
+|---|---|---|---|
+| 1 | A | SPK1 | 0.368 |
+| 2 | B | SPK2 | 0.419 |
+| 3 | A | SPK1 | 0.25 |
+| 4 | B | SPK2 | 0.143 |
+| 5 | A | SPK1 | 0.667 |
+| 6 | B | SPK2 | 0.3 |
+| 7 | A | SPK1 | 0.333 |
+| 8 | B | SPK2 | 0.333 |
+| 9 | A | SPK1 | 0.5 |
+| 10 | B | SPK2 | 0.652 |
+| 11 | A | SPK1 | 0.25 |
+| 12 | B | SPK2 | 0.667 |
+| 13 | A | — missing — | 1.0 |
+| 14 | A | SPK1 | 0.607 |
+| 15 | B | SPK2 | 0.35 |
+| 16 | A | SPK1 | 0.111 |
+| 17 | B | SPK2 | 0.857 |
+| 18 | A | SPK1 | 0.5 |
+| 19 | B | SPK2 | 0.545 |
+| 20 | A | SPK1 | 0.067 |
+| 21 | B | — missing — | 1.0 |
+| 22 | A | — missing — | 1.0 |
+| 23 | B | SPK2 | 1.375 |
+| 24 | A | SPK2 | 0.81 |
+| 25 | B | — missing — | 1.0 |
+| 26 | A | SPK1 | 0.0 |

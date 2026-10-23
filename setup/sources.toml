@@ -266,3 +266,28 @@ build = ["setup/make_ami_fixture.py", "--meeting", "ES2004a", "--audio", "{audio
 files = [ { dest = "evals/fixtures/ami_es2004a_450s/truth.json" } ]
 extra_mb = 57
 note = "4-person English meeting, 3 minutes: validates the speaker-count estimate and speaker accuracy on 3+ speakers"
+
+[[item]]
+id = "indic_conformer_600m"
+phase = 2
+kind = "hf"
+licence = "MIT (gated: accept terms on the model page, then `hf auth login`)"
+repo = "ai4bharat/indic-conformer-600m-multilingual"
+revision = "2a77d305038dfc502fd9464e7d028b90381976cb"
+dest = "toolchain/models/indic-conformer-600m-multilingual"
+marker = "assets/encoder.onnx"
+files = [ { dest = "toolchain/models/indic-conformer-600m-multilingual/assets/encoder.onnx" }, { dest = "toolchain/models/indic-conformer-600m-multilingual/SOURCE.json" } ]
+extra_mb = 2560
+
+[[item]]
+id = "indic_transcribe_core"
+phase = 2
+kind = "hf"
+licence = "Indic Open Model License v1.0 (gated form on the model page, then `hf auth login`)"
+repo = "bodhan-ai/indic-transcribe-core"
+revision = "e083ab7dfeeddcb5c0b4a2d7df53f53e7b0f1537"
+dest = "toolchain/models/indic-transcribe-core"
+exclude = ["nemo/*"]
+marker = "model.safetensors"
+files = [ { dest = "toolchain/models/indic-transcribe-core/model.safetensors" }, { dest = "toolchain/models/indic-transcribe-core/SOURCE.json" } ]
+extra_mb = 4891

@@ -10,7 +10,8 @@ META_KEYS = ["id", "version", "description", "when_to_use", "when_not_to_use", "
 # AND listing it here; `trx doctor` / `trx test` reject anything else as dead config.
 STAGE_KEYS = {
     "convert": {"channels", "highpass_hz", "loudnorm_target_lufs", "sample_rate"},
-    "separate": {"required", "engine", "model", "shifts", "overlap", "apply_if_background_db_above"},
+    "separate": {"required", "engine", "model", "shifts", "overlap", "apply_if_background_db_above",
+                 "background_keep_db"},
     "denoise": {"engine", "fallback", "skip_below_dbfs", "attenuation_limit_db", "speech_guard", "speech_guard_threshold",
                 "speech_guard_db"},
     "vad": {"engine", "threshold", "min_speech_ms", "min_silence_ms", "speech_pad_ms", "max_segment_s", "gap_audit",
@@ -24,6 +25,8 @@ STAGE_KEYS = {
                                  "temperature", "compression_ratio_threshold", "log_prob_threshold",
                                  "no_speech_threshold", "condition_on_previous_text", "repetition_penalty",
                                  "no_repeat_ngram_size", "hallucination_silence_threshold"},
+    "recognise.indic_conformer": {"decoder", "piece_max_s", "threads", "segmentation"},
+    "recognise.indic_transcribe": {"piece_max_s", "threads", "segmentation", "dtype", "device"},
     "verify": {"required"},
     "polish": {"doubled_words_guard"},
     "gate": {"thresholds"},
