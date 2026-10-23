@@ -23,6 +23,8 @@ music_background_db = -12.0         # probe: non-vocal energy above this (vs spe
 [verify]                            # Phase 2 (provisional)
 min_agreement = 0.80                # engine-vs-engine character agreement per window
 min_avg_logprob = -1.0
+min_token_logprob_mean = -0.21      # Indic-Transcribe: mean log-prob of its chosen tokens; below = soft flag
+                                    # 'uncertain' (E40: catches 57-83 % of the bad lines, clean speech 0 flags)
 max_no_speech_prob = 0.60
 max_compression_ratio = 2.4        # floor of the length-aware limit below (E37)
 compression_base = 2.25             # limit = max(2.4, base + per_char * characters) + margin: no human-written
@@ -38,7 +40,8 @@ review_if_flagged_ratio_above = 0.05   # ANY flag on more than 5 % of transcribe
 fail_if_flagged_ratio_above = 0.40     # HARD flags (not listed below) on more than 40 % -> FAIL
 # Soft flags mark lines a reviewer should check, but the text is a real attempt at the speech (wrong word forms,
 # speaker boundaries, channel bleed). They can make a run REVIEW, never FAIL. Matched by flag-name prefix.
-soft_flags = ["hindi_forms_in_marathi", "speaker_change_inside_segment", "crosstalk", "recovered_turn", "quiet_speech"]
+soft_flags = ["hindi_forms_in_marathi", "speaker_change_inside_segment", "crosstalk", "recovered_turn", "quiet_speech",
+              "uncertain"]
 # Info flags are shown in review_list.md to help the reviewer but never change the verdict.
 info_flags = ["unknown_words", "latin_script"]
 fail_if_no_text = true

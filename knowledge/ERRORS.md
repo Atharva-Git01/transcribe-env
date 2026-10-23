@@ -457,8 +457,39 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
     counted as private only under their fixture's current name; now every eval run is private unless its fixture is
     open-licensed. A written filler in code matched the call; words that `library/` holds on purpose no longer count
     as leaks.
-- **Open (next steps, measured with the monitor):** a confidence score from the decoder, to flag the bad and invented
-  lines (F15, F19); a check for near-identical rare words (names) within one file (F17); the owner's choice between
+- **Open (next steps, measured with the monitor):** ~~a confidence score from the decoder~~ (done: E40); a check for near-identical rare words (names) within one file (F17); the owner's choice between
   colloquial and standard spelling for the output; the transcript of 12:00–20:35.
 - **Rule:** read the `how:` line, not only the CER. A change can keep the CER and still lose replies or flip
   meanings; a truth that stops early must say where.
+
+## E40 — The worst lines were never marked for review; the model knew it was unsure
+- **Seen (2026-10-23, failure monitor of E39):** of the lines with > 40 % content errors, the review flags marked
+  1 of 17 on the 20-minute call and 0 of 7 on the Pappa call. Indic-Transcribe returned no confidence, so the
+  `low_confidence` flag (made for Whisper's avg_logprob) could never fire. Short lines with invented words — an
+  English word, a name, a phrase nobody said — went through unmarked.
+- **Why:** the wrapper's `transcribe()` returns text only. The decoder does score every token it chooses.
+- **Fix:**
+  - The engine wraps the model's `generate()` for each call (`output_scores`) and keeps the log-probability of each
+    chosen token: `token_logprob_mean` / `token_logprob_min` per line. Text and greedy choice unchanged (all 276
+    lines of the 20-minute call identical). Beam search: no scores.
+  - Polish adds the SOFT flag `uncertain` when `token_logprob_mean` < `min_token_logprob_mean` (−0.21), except on
+    lines of acknowledgements only ("हं", "हो" …: the model hesitates between their spellings, not their meaning;
+    on the call 17 such flags would have been 15 false alarms).
+- **Calibration:** on the 20-minute call the mean log-prob tracks the line error (Spearman −0.52; language-model
+  fluency only −0.29). −0.21 flags 15 % of the scored lines and catches 11 of 18 bad ones. Checked on the other
+  fixtures without changing it:
+
+  | Fixture | bad lines marked, before → after | flagged lines that are > 40 % wrong | time flagged |
+  |---|---|---|---|
+  | 20-minute call | 0 → 10 of 17 | 17 of 30 | 9 % |
+  | Pappa call | 0 → 4 of 7 | 4 of 6 | 19 % |
+  | AMI meeting | 2 → 4 of 6 | 5 of 6 | 5 % |
+  | Music fixture | → 5 of 6 | 7 of 7 | 31 % |
+  | FLEURS mr / hi (clean read speech) | no bad lines | nothing flagged | 0 % |
+
+  Of 18 short lines on the call that read as invented (8 before 12:00, 10 after), 16 are flagged; the model was
+  sure of the other two (an invented name at −0.06). **Not caught:** a single wrong word inside a long fluent line
+  (after 12:00, 0 of 9 such lines). The model was confident in those words too: their lowest token log-prob,
+  −0.6 to −1.1, is what right words get, and no scored long line goes below −2. Those stay the reviewer's job.
+- **Rule:** a confidence flag needs a threshold measured for its engine. Whisper's −1.0 means nothing for
+  Indic-Transcribe's token scores; keep `avg_logprob` for Whisper and `token_logprob_mean` for Indic-Transcribe.

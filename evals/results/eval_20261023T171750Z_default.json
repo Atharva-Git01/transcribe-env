@@ -1,0 +1,154 @@
+{
+  "schema": "trx.eval/1",
+  "env_version": "0.8.2",
+  "utc": "2026-10-23T17:17:50Z",
+  "overrides": {
+    "engine": null,
+    "recipe": null,
+    "lang": null
+  },
+  "rows": [
+    {
+      "fixture": "fleurs_mr_test10",
+      "exit": "OK",
+      "verdict": "REVIEW",
+      "recipe": "meeting_multi_speaker",
+      "engines": [
+        "indic_transcribe_core"
+      ],
+      "language": "mr",
+      "cer": 0.0442,
+      "wer": 0.1209,
+      "seconds": 149.4,
+      "run_id": "eval_fleurs_mr_test10-20261023-224521",
+      "flagged_time_ratio": 0.0972,
+      "speaker_acc": null,
+      "speakers_found": 4,
+      "cer_norm": 0.0261,
+      "cer_loose": 0.0251,
+      "cer_std": null,
+      "missing_turns": 0,
+      "turns": 10,
+      "scored_until_sec": null,
+      "spelling": "standard",
+      "hindi_forms": 0,
+      "rtf": 1.17,
+      "monitor": {
+        "cer_content": 0.0251,
+        "turn_outcomes": {
+          "correct": 10
+        },
+        "negations": 0,
+        "negation_errors": 0,
+        "numbers": 7,
+        "number_errors": 2,
+        "short_line_cer": null,
+        "long_line_cer": 0.0251,
+        "bad_lines": 0,
+        "bad_lines_flagged": 0
+      },
+      "turn_rows": [
+        {
+          "turn": 1,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.013,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 2,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK2"
+          ],
+          "cer": 0.097,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 3,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK3"
+          ],
+          "cer": 0.0,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 4,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.203,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 5,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK4"
+          ],
+          "cer": 0.009,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 6,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.0,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 7,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK1"
+          ],
+          "cer": 0.047,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 8,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK4"
+          ],
+          "cer": 0.036,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 9,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK3"
+          ],
+          "cer": 0.117,
+          "what_happened": "correct",
+          "missing": false
+        },
+        {
+          "turn": 10,
+          "ref_speaker": "A",
+          "hyp_speakers": [
+            "SPK3"
+          ],
+          "cer": 0.007,
+          "what_happened": "correct",
+          "missing": false
+        }
+      ]
+    }
+  ]
+}

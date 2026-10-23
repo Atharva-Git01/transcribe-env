@@ -1,6 +1,6 @@
 {
   "schema": "trx.baseline/1",
-  "env_version": "0.8.1",
+  "env_version": "0.8.3",
   "scores": {
     "pappa_260603_211622|phone_call_mono|faster_whisper_large_v3|mr": {
       "cer": 0.5132,
@@ -27,43 +27,49 @@
       "cer": 0.2493,
       "wer": 0.2926,
       "speaker_acc": 0.8871,
-      "env_version": "0.8.1",
-      "utc": "2026-10-23T14:38:32Z"
+      "cer_content": 0.2268,
+      "env_version": "0.8.3",
+      "utc": "2026-10-23T17:54:15Z"
     },
     "fleurs_hi_test10|meeting_multi_speaker|indic_transcribe_core|hi": {
       "cer": 0.0211,
       "wer": 0.0599,
       "speaker_acc": null,
-      "env_version": "0.8.1",
-      "utc": "2026-10-23T14:31:48Z"
+      "cer_content": 0.0092,
+      "env_version": "0.8.3",
+      "utc": "2026-10-23T17:47:59Z"
     },
     "fleurs_mr_test10|meeting_multi_speaker|indic_transcribe_core|mr": {
       "cer": 0.0442,
       "wer": 0.1209,
       "speaker_acc": null,
-      "env_version": "0.8.1",
-      "utc": "2026-10-23T14:28:58Z"
+      "cer_content": 0.0251,
+      "env_version": "0.8.3",
+      "utc": "2026-10-23T17:45:23Z"
     },
     "fleurs_mr_test10_music5db|noisy_field_audio|indic_transcribe_core|mr": {
       "cer": 0.3052,
       "wer": 0.4286,
       "speaker_acc": null,
-      "env_version": "0.8.1",
-      "utc": "2026-10-23T14:34:36Z"
+      "cer_content": 0.2861,
+      "env_version": "0.8.3",
+      "utc": "2026-10-23T17:50:42Z"
     },
     "pappa_260603_211622|phone_call_mono|indic_transcribe_core|mr": {
       "cer": 0.3612,
       "wer": 0.6875,
       "speaker_acc": 0.9663,
-      "env_version": "0.8.1",
-      "utc": "2026-10-23T14:26:14Z"
+      "cer_content": 0.3281,
+      "env_version": "0.8.3",
+      "utc": "2026-10-23T17:42:47Z"
     },
     "call_240509_20min|phone_call_mono|indic_transcribe_core|mr": {
-      "cer": 0.2316,
+      "cer": 0.2318,
       "wer": 0.478,
-      "speaker_acc": 0.9858,
-      "env_version": "0.8.1",
-      "utc": "2026-10-23T16:16:12Z"
+      "speaker_acc": 0.9873,
+      "cer_content": 0.1916,
+      "env_version": "0.8.3",
+      "utc": "2026-10-23T17:41:09Z"
     }
   },
   "references": {

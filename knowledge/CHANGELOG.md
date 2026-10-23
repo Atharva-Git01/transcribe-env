@@ -3,6 +3,24 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.8.3 — 2026-10-23 (the review flags point at the bad lines)
+**Eval (seeded; baseline saved).** Every CER identical to 0.8.2; what changed is which lines a reviewer is sent to.
+
+| Fixture | bad lines (> 40 % wrong) marked for review, 0.8.2 → 0.8.3 | verdict |
+|---|---|---|
+| 20-min call (mr, phone) | 0 → **10 of 18** | REVIEW |
+| Pappa call (mr, phone) | 0 → **4 of 7** | PASS → **REVIEW** (a third of its words are wrong) |
+| AMI meeting (en) | 2 → **5 of 6** | REVIEW |
+| FLEURS mr + music | → **5 of 6** | REVIEW |
+| FLEURS mr / hi (clean) | no bad lines, nothing flagged | REVIEW / PASS as before |
+
+- **Soft flag `uncertain` (E40):** Indic-Transcribe's own confidence — the mean log-probability of the tokens it
+  chose, captured by wrapping the model's `generate()` (text unchanged) — below −0.21 marks the line, except lines of
+  acknowledgements only. Calibrated on the 20-minute call, then checked unchanged on the others (table). It marks
+  16 of the 18 short lines on the call that read as invented (9 of 10 after 12:00). Not caught: a single wrong word
+  inside a long fluent line — the model is confidently wrong there (E40).
+- OPERATOR.md tells the operator what an `uncertain` line means; catalogue F15 and F19 updated.
+
 ## 0.8.2 — 2026-10-23 (the owner's 20-minute call: failure monitor, scoring a half transcript)
 **Eval.** New fixture `call_240509_20min` (the owner's 20:35 Marathi phone call, private; the owner's transcript
 covers 0:00–12:00): **CER 0.232**, content CER 0.192, spk 0.986 (baseline saved with 0.8.1). The first eval said

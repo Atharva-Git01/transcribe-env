@@ -1,6 +1,6 @@
 """Stage: polish. Flags (never deletes) suspicious text; optional vocab and Gemma 3 cleanup (phase 3).
 
-Flags: low_confidence · repetitive · loop · prompt_copy · known_hallucination_phrase · wrong_script ·
+Flags: low_confidence · uncertain · repetitive · loop · prompt_copy · known_hallucination_phrase · wrong_script ·
 hindi_forms_in_marathi · possible_omission (speech heard, no text). Real doubled words are exempt from loop checks.
 """
 from __future__ import annotations
@@ -19,6 +19,20 @@ WORD = re.compile(r"[^\s\.,!?।॥;:\"'()]+")
 
 LATIN_OR_DIGIT = re.compile(r"[A-Za-z0-9]")
 LATIN_WORD = re.compile(r"[A-Za-z][A-Za-z'\-]*")
+
+
+def uncertain(s: dict, lang: str, thr: dict) -> str | None:
+    """Soft flag when the recogniser itself was unsure of a line (E40): the mean log-probability of the tokens it
+    chose (Indic-Transcribe, `token_logprob_mean`) below `min_token_logprob_mean`. A line of acknowledgements only
+    ("हं", "हो" …) is left alone: the model hesitates between their spellings, not between meanings."""
+    conf = s.get("token_logprob_mean")
+    if conf is None or conf >= float(thr.get("min_token_logprob_mean", float("-inf"))):
+        return None
+    from ..metrics import normalise, scoring_words
+    words = normalise(s.get("text", "")).split()
+    if words and all(w in scoring_words(lang)["backchannels"] for w in words):
+        return None
+    return f"uncertain: the recogniser was unsure of these words (mean token log-prob {conf})"
 
 
 def _lexicon(lang: str):
@@ -162,6 +176,9 @@ def run(ctx: Ctx, params: dict) -> None:
             flags.append(f"low_confidence (avg_logprob {s['avg_logprob']})")
         if s.get("no_speech_prob") is not None and s["no_speech_prob"] > thr["max_no_speech_prob"]:
             flags.append(f"low_confidence (no_speech_prob {s['no_speech_prob']})")
+        unsure = uncertain(s, lang, thr)
+        if unsure:
+            flags.append(unsure)
         rep = repetition(s["text"], s.get("compression_ratio"), thr)
         if rep:
             flags.append(f"repetitive ({rep})")

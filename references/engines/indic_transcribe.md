@@ -19,6 +19,9 @@
   deterministic (cuDNN/cuBLAS deterministic settings). Out of GPU memory → falls back to the CPU (logged).
 - CPU (no CUDA build, or `[runtime] device = "cpu"`): float32, 8 threads, ~7 GB of RAM at peak, load 30–75 s.
 - Pieces of at most 30 s (the length it was trained on); `max_new_tokens` scales with the piece length (loop guard).
+- Confidence (0.8.3, E40): the engine wraps the model's `generate()` per call and keeps the log-probability of each
+  chosen token → `token_logprob_mean` / `token_logprob_min` per line (greedy decoding only; text unchanged). Mean
+  below −0.21 → soft flag `uncertain`. Its avg_logprob stays empty: Whisper's −1.0 threshold does not apply.
 - Settings: `[recognise.indic_transcribe]` in every recipe.
 
 ## Measured here (seeded, same pipeline, decode per speaker turn, Gemma cleanup off)

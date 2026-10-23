@@ -61,7 +61,9 @@ Quote paths that contain spaces.
 - A 1-minute phone call takes about 2 minutes (Indic-Transcribe on the GPU + speaker separation). There is no
   quicker mode: `--fast` was removed in 0.7.2 because the default became the fastest good option.
 - `REVIEW` is normal for hard phone audio: it means some lines are uncertain, not that the run broke. A line marked
-  `quiet_speech` is quiet speech the second speech check found: listen to it before trusting it.
+  `quiet_speech` is quiet speech the second speech check found: listen to it before trusting it. A line marked
+  `uncertain` is one the speech model itself was unsure of (often a short reply): its words may be wrong or
+  invented. Listen to it before quoting it.
 - If the last line says `MODEL_MISSING`: a model folder in `toolchain/models/` is missing. Report it;
   do not try to fix it.
 - If the last line says `DISK_LOW`: report it; do not delete anything.

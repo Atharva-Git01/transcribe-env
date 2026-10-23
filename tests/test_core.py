@@ -94,6 +94,16 @@ class TestPolish(unittest.TestCase):
         self.assertTrue(FOREIGN_LETTER.findall("ববব"))
         self.assertFalse(FOREIGN_LETTER.findall("हॅलो, ठीक आहे. Okay 2"))
 
+    def test_uncertain_lines(self):
+        # E40: the decoder's own confidence points at the bad lines; acknowledgements are left alone
+        from pipeline.stages.polish import uncertain
+        thr = load_config("thresholds")["verify"]
+        line = {"text": "उद्या बाजारात भाजी घेऊ", "token_logprob_mean": -0.05}
+        self.assertIsNone(uncertain(line, "mr", thr))                                 # sure of itself
+        self.assertTrue(uncertain(dict(line, token_logprob_mean=-0.6), "mr", thr).startswith("uncertain"))
+        self.assertIsNone(uncertain({"text": "हं हं", "token_logprob_mean": -0.9}, "mr", thr))
+        self.assertIsNone(uncertain({"text": "उद्या भेटू", "avg_logprob": None}, "mr", thr))   # other engines
+
 
 class TestSegmentation(unittest.TestCase):
     def test_speech_groups(self):

@@ -159,11 +159,43 @@ class IndicTranscribeEngine:
         if len(x) < 1600:
             return []
         beams = {"num_beams": self.num_beams} if self.num_beams > 1 else {}
-        text = self.asr.transcribe(x, lang, mode="native", max_new_tokens=int(min(512, 12 * (b - a) + 32)), **beams).strip()
+        text, lp = self._decode(x, lang, int(min(512, 12 * (b - a) + 32)), beams)
         if not text:
             return []
+        # the decoder's own certainty (E39): mean and lowest log-probability of the tokens it chose. Kept apart from
+        # avg_logprob, whose flag threshold is Whisper's, until a threshold for this engine is measured.
+        conf = {"token_logprob_mean": round(sum(lp) / len(lp), 4), "token_logprob_min": round(min(lp), 4)} if lp else {}
         return [{"start": round(a, 3), "end": round(b, 3), "text": text, "avg_logprob": None, "no_speech_prob": None,
-                 "compression_ratio": None, "temperature": None, "words": []}]
+                 "compression_ratio": None, "temperature": None, "words": [], **conf}]
+
+    def _decode(self, x: np.ndarray, lang: str, max_new: int, beams: dict) -> tuple[str, list[float]]:
+        """The wrapper's own transcribe(), with the model's generate() wrapped for this one call so the scores of the
+        chosen tokens come back too; the text path and the greedy choice are unchanged. Beam search: no scores."""
+        model = self.asr.model
+        if beams:
+            return self.asr.transcribe(x, lang, mode="native", max_new_tokens=max_new, **beams).strip(), []
+        import torch
+        own, orig, lp = "generate" in model.__dict__, model.generate, []
+
+        def generate(*args, **kw):
+            out = orig(*args, output_scores=True, return_dict_in_generate=True, **kw)
+            steps = out.scores or ()
+            chosen = out.sequences[0, out.sequences.shape[1] - len(steps):]
+            eos = model.generation_config.eos_token_id
+            eos = set(eos if isinstance(eos, (list, tuple)) else [eos])
+            for step, tok in zip(steps, chosen.tolist()):
+                if tok not in eos:
+                    lp.append(float(torch.log_softmax(step[0].float(), dim=-1)[tok]))
+            return out.sequences
+        model.generate = generate
+        try:
+            text = self.asr.transcribe(x, lang, mode="native", max_new_tokens=max_new).strip()
+        finally:
+            if own:
+                model.generate = orig
+            else:
+                del model.generate
+        return text, lp
 
     def unload(self) -> None:
         self.asr = None
