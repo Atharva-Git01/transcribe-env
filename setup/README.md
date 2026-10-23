@@ -1,12 +1,25 @@
 # setup/ — the only part that may use the internet
 
-Nothing here runs automatically. Each tier is installed once, after the owner approves it.
+Nothing here runs automatically, and nothing here runs during a transcription. Each phase is installed once, after
+the owner approves it (name, source and size first). Run with the system Python 3.12; it creates the venv.
 
-Planned (phase 1):
-- `setup.ps1 -Tier <phase>` — prints the plan (components, sizes, licences, disk needed) and changes nothing.
-- `setup.ps1 -Tier <phase> -Approve` — creates `toolchain/python/.venv`, installs `requirements.lock`
-  (`pip --require-hashes`), fetches models/binaries into `toolchain/`, writes `SOURCE.json` with sha256.
-- `fetch_models.py --check <phase>` — sizes via HEAD requests only (no download).
-- `clean.py` — lists rebuildable files; deletes only with `--yes`.
+```
+python setup/setup.py plan    [--phase N]          what would be installed: sizes, licences, status, disk
+python setup/setup.py install --phase N --approve  install one phase (venv from the locks, models, binaries)
+python setup/setup.py verify                       sha256 of every installed model/binary vs sources.toml
+python setup/setup.py write-sources                record SOURCE.json next to every installed component
+```
 
-After setup, the runtime is offline again: `trx doctor --offline` must pass.
+- `sources.toml`: every downloadable item (URL or Hugging Face repo at a pinned revision, sha256, destination).
+  Gated Hugging Face models (IndicConformer, Indic-Transcribe) use the login the owner stored with
+  `toolchain\python\.venv\Scripts\hf.exe auth login`. Claude never types or reads tokens.
+- `requirements.lock`, `requirements-nodeps.lock`, `requirements-ml.lock` (PyTorch CPU, transformers,
+  sentencepiece, Demucs, …): pip `--require-hashes`.
+- `build_lm.py`: Marathi/Hindi word language models from IndicCorp v2 (CC-0).
+- Fixture builders (the fixtures stay on this PC; `evals/fixtures/*/` is git-ignored):
+  - `make_fleurs_fixture.py`: 10 FLEURS test sentences (CC-BY-4.0) joined into one file
+  - `make_mix_fixture.py`: an existing fixture + a music file at a chosen speech-to-music ratio
+  - `make_ami_fixture.py`: a 3-minute window of an AMI meeting (CC-BY-4.0) with speaker turns
+  - `make_fixture.py`: one of the owner's recordings + a `speaker: text` transcript
+
+After setup the runtime is offline again: `trx doctor --offline` must pass.

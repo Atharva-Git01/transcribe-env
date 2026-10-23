@@ -1,5 +1,9 @@
 # Plan v0.7: fixing the Pappa-call errors and testing Indic engines (2026-10-22)
 
+> **Status 2026-10-23: implemented in 0.7.0.** Results, decisions and what was rejected: `knowledge/CHANGELOG.md`
+> 0.7.0 and `knowledge/ERRORS.md` E24–E29. Still open: the owner's recordings (phase 10), short replies merged by
+> diarization, speed (CUDA PyTorch, QUESTIONS.md 20), deleting the fallback engine (QUESTIONS.md 21).
+
 Written after comparing the 0.6.0 output of the Pappa call with the owner's ground truth (26 turns).
 This plan assumes the owner provides what each step needs; section 6 lists those things.
 

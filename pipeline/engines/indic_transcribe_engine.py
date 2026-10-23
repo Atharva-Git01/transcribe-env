@@ -76,14 +76,16 @@ class IndicTranscribeEngine:
                 "model_sha256": source_info(self.id).get("model_sha256")}
 
     def detect_language(self, audio: np.ndarray, candidates: list[str]) -> dict:
-        top = self.asr.identify(np.asarray(audio, dtype=np.float32), topk=10)
+        # allowed_langs is a hard filter (model docs): speech in another language goes to the nearest candidate
+        allowed = [c for c in candidates if c in LANGS]
+        top = self.asr.identify(np.asarray(audio, dtype=np.float32), topk=len(allowed) or 10, allowed_langs=allowed or None)
         probs = {lang: p for lang, p in top if lang in candidates}
         total = sum(probs.values()) or 1.0
         return {c: probs.get(c, 0.0) / total for c in candidates}
 
     def transcribe(self, audio: np.ndarray, language: str | None, fw: dict, vad: dict | None,
                    initial_prompt: str | None, word_timestamps: bool, clip_timestamps: list[float] | None = None) -> list[dict]:
-        lang = language or "mr"
+        lang = language or self._guess(audio)          # unknown language: the model's own LID on the speech
         if lang not in LANGS:
             raise TrxError("CONFIG_INVALID", f"Indic-Transcribe does not support language '{lang}'")
         dur = len(audio) / 16000.0
@@ -102,6 +104,10 @@ class IndicTranscribeEngine:
                 a += self.max_s
             out += self._piece(audio, a, b, lang)
         return out
+
+    def _guess(self, audio: np.ndarray) -> str:
+        x = np.ascontiguousarray(audio[:int(self.max_s * 16000)], dtype=np.float32)
+        return self.asr.identify(x, topk=1)[0][0]
 
     def _piece(self, audio, a: float, b: float, lang: str) -> list[dict]:
         x = np.ascontiguousarray(audio[int(a * 16000):int(b * 16000)], dtype=np.float32)

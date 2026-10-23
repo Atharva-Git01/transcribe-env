@@ -7,6 +7,12 @@ analysis_sample_rate = 32000      # probe decodes at this rate (covers phone vs 
 seed = 1234                       # fixed seed wherever a stage is stochastic
 device = "auto"                   # "auto" (cuda if usable, else cpu) | "cpu". One GPU model at a time: load -> run -> unload (E06)
 
+[runtime.memory_gb]
+# Free memory (RAM + page file) an engine family needs to load and run on the CPU; below it the run stops with
+# MEMORY_LOW instead of crashing (E31). A whole Indic-Transcribe run peaks at ~7.0 GB; loading it adds ~5 GB.
+indic_transcribe = 5.5
+indic_conformer = 3.0
+
 [fallback_ladder]                 # E04: speech heard but no text -> relax silence checks -> VAD off -> FAIL
 min_speech_sec = 1.0
 relaxed_no_speech_threshold = 0.9
@@ -43,11 +49,15 @@ segment_en_min = 0.80                  # per-group LID: a group becomes English 
 # letters (unseeded, CER 1.52). FMS on the same call, same metric: 0.745.
 # en has no fixture yet: turbo first (fast; same family as large-v3).
 [engines.primary]
-mr = ["faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
-hi = ["faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
-en = ["faster_whisper_large_v3_turbo", "faster_whisper_large_v3"]
-mixed = ["faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
-unknown = ["faster_whisper_large_v3", "faster_whisper_large_v3_turbo", "faster_whisper_medium"]
+# 0.7.0 (eval 2026-10-23, same pipeline, each speaker turn decoded on its own): Indic-Transcribe-core beats large-v3 on
+# every fixture - CER Pappa 0.513 -> 0.379, FLEURS mr 0.273 -> 0.049, hi 0.072 -> 0.021, AMI (en) 0.308 -> 0.284.
+# IndicConformer-600M is the first fallback for mr/hi (0.377 / 0.056 / 0.034; it has no English). Whisper stays as the
+# last fallback, for --fast and for language ID.
+mr = ["indic_transcribe_core", "indic_conformer_600m", "faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
+hi = ["indic_transcribe_core", "indic_conformer_600m", "faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
+en = ["indic_transcribe_core", "faster_whisper_large_v3_turbo", "faster_whisper_large_v3"]
+mixed = ["indic_transcribe_core", "faster_whisper_large_v3", "faster_whisper_large_v3_turbo"]
+unknown = ["indic_transcribe_core", "faster_whisper_large_v3", "faster_whisper_large_v3_turbo", "faster_whisper_medium"]
 
 [engines.cross_check]
 enabled = false                   # second engine (different model) scores agreement per segment; off: see MORNING_REPORT.md
@@ -67,4 +77,7 @@ files = []
 # only spelling/punctuation/Hindi->Marathi form fixes of heard words (E17). Eval, cleanup off -> on:
 # Pappa CER 0.531 -> 0.513, FLEURS mr 0.286 -> 0.273, FLEURS hi 0.083 -> 0.074. Costs ~+1-2 min per file.
 enabled = true
+# Engine families whose output is cleaned. With Indic-Transcribe the cleanup changed nothing (eval 2026-10-23, off -> on:
+# Pappa 0.379 -> 0.379, FLEURS mr 0.048 -> 0.049, hi 0.021 -> 0.021) and cost ~15 % of the run time (E26).
+engines = ["faster_whisper"]
 model = "gemma3_4b_it_q4"

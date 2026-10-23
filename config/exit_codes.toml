@@ -76,6 +76,11 @@ code = 50
 meaning = "Free disk space is below config/defaults.toml [runtime].min_free_gb."
 next = "Free disk space (or ask the owner to), then run the same command again."
 
+[MEMORY_LOW]
+code = 51
+meaning = "Not enough free memory (RAM + page file) to load the speech model (config/defaults.toml [runtime.memory_gb])."
+next = "Close big programs (web browsers first) or restart the PC, then run the same command again. Do not delete anything."
+
 [DOCTOR_FAILED]
 code = 60
 meaning = "One or more required checks in `trx doctor` failed."

@@ -296,6 +296,9 @@ def _failure(e: Exception, run_dir: Path, log: Decisions) -> tuple[str, str, lis
     if isinstance(e, TrxError):
         log.add("run", "failed", e.detail or e.name)
         return e.name, "FAIL", [f"{e.name}: {e.detail}"]
+    if isinstance(e, MemoryError) or getattr(e, "winerror", None) == 1455:   # "paging file is too small" (E31)
+        log.add("run", "failed", f"out of memory: {type(e).__name__}: {e}")
+        return "MEMORY_LOW", "FAIL", [f"MEMORY_LOW: out of memory while running ({type(e).__name__})"]
     import traceback
     (run_dir / "work" / "traceback.txt").write_text(traceback.format_exc(), encoding="utf-8")
     log.add("run", "crashed", f"{type(e).__name__}: {e}", traceback="work/traceback.txt")

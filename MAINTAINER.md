@@ -23,7 +23,8 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 ## The gate (no exceptions)
 1. Make the change on a branch: `git switch -c tune/<short-name>`.
 2. Run `trx doctor --offline` and `trx test` → both must be OK (the test suite also rejects recipe keys no
-   stage reads — see `pipeline/recipes.py STAGE_KEYS`).
+   stage reads — see `pipeline/recipes.py STAGE_KEYS` — and any file git would push that holds words of a
+   private recording, E29).
 3. Run `trx eval` → compare with `evals/baseline.json`.
    - Accept only if the target score improves AND no recipe × engine × fixture gets worse beyond the noise margin
      in `evals/README.md`.
@@ -34,9 +35,16 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 ## Fixtures and scores
 - Every fixture is `evals/fixtures/<id>/audio.* + truth.json` (`trx.truth/1`). Audio and truth stay on this PC
   (git-ignored). Public test sets are rebuilt by `setup/setup.py install --phase 6` (see `setup/sources.toml`).
-- `trx eval` reports CER, WER and `spk` (speaker accuracy) for fixtures whose truth has ≥ 2 speakers.
+- `trx eval` reports strict / normalised / loose CER, WER, `spk` (speaker accuracy, truth with ≥ 2 speakers),
+  missing truth turns, Hindi forms in Marathi output and the real-time factor.
+- `evals/results/` is pushed to GitHub and holds numbers only (speaker names become A, B, …). The truth-vs-output
+  table per turn is written to `evals/compare/`, which never leaves this PC. Never copy a private fixture's words
+  into any tracked file, including test strings and ERRORS examples (E29).
 - Current fixtures: the Pappa call (hard Marathi phone call, 2 speakers), FLEURS Marathi and Hindi (10 clean read
-  sentences each). A change must not make any of them worse by more than the noise margin.
+  sentences each), FLEURS Marathi + music 5 dB below the speech, and an AMI 4-person English meeting (3 min).
+  A change must not make any of them worse by more than the noise margin.
+- The owner's recordings become fixtures with `python setup/make_fixture.py --id <id> --audio <file> --text <file>
+  --lang mr` (one `speaker: text` line per turn, written in the output convention).
 
 ## Language models and lexicons
 - `toolchain/models/lm-<lang>-v1` is built by `setup/build_lm.py` from a corpus prefix (IndicCorp v2, CC-0).
@@ -48,8 +56,12 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 ## Adding a new ASR engine
 1. Add it to `manifest.toml` (licence must allow commercial use; size; source).
 2. Owner approves the download; `setup/` installs it into `toolchain/models/<id>/` with sha256 in `SOURCE.json`.
-3. Write `pipeline/engines/<id>_engine.py` implementing the interface in `pipeline/engines/base.py`.
+3. Write `pipeline/engines/<id>_engine.py` implementing the interface in `pipeline/engines/base.py`; register it in
+   `make()` and give its family a settings table `[recognise.<family>]` in every recipe (plus `STAGE_KEYS`).
+   An engine without word timings must use `segmentation = "turns"` (E28).
 4. `trx eval --engine <id>`: it becomes a default for a language only if it beats the current one there.
+5. Re-measure the post-processing with it: Gemma cleanup (`[llm_cleanup] engines`, E26) and Demucs (E27) were
+   decided per engine.
 
 ## Never
 - Never change anything during a run or inside `runs/`.

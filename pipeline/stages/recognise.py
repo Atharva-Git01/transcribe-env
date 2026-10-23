@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import zlib
 
-from .. import gpu
+from .. import gpu, resources
 from ..audio import read_wav
 from ..common import TRX_HOME, TrxError, env_version, load_config, write_json
 from ..context import Ctx
@@ -240,6 +240,12 @@ def run(ctx: Ctx, params: dict) -> None:
     def engine():  # loaded only when something actually has to be decoded (a resumed run may need nothing)
         if held["eng"] is None:
             e = make(eng_id)
+            rt = load_config("defaults")["runtime"]
+            need = float(rt.get("memory_gb", {}).get(e.family, 0.0))
+            have = resources.headroom_gb()
+            if not resources.enough(need, have):
+                raise TrxError("MEMORY_LOW", f"{have:.1f} GB of memory free (RAM + page file); {eng_id} needs about "
+                                             f"{need:g} GB")
             held["info"] = e.load(gpu.choose_device(), fw)
             held["eng"] = e
             ctx.engines_used.append(held["info"])

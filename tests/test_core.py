@@ -281,6 +281,17 @@ class TestEvalPrivacy(unittest.TestCase):
                                    {"turn": 2, "ref_speaker": "B", "ref": "हो", "hyp": "", "hyp_speakers": [], "cer": 1.0}])
         self.assertTrue(all("ref" not in r and "hyp" not in r for r in rows))
         self.assertEqual([r["missing"] for r in rows], [False, True])
+        self.assertEqual([r["ref_speaker"] for r in rows], ["A", "B"])          # names of people stay here too
+        self.assertEqual(turns_without_text(rows), rows)                         # idempotent
+
+    def test_no_private_words_in_pushable_files(self):
+        from pipeline import privacy
+        self.assertEqual(privacy.phrases(["मी उद्या सकाळी येतो."]), {"मी उद्या सकाळी", "उद्या सकाळी येतो"})
+        if not privacy.private_texts():
+            self.skipTest("no private fixtures or runs on this PC")
+        self.assertEqual(privacy.leaks(), [], "words of a private recording in a file git would push (E29)")
+        self.assertEqual([(f, n) for f, n, _ in privacy.rare_word_leaks()], [],
+                         "a rare word of a private recording in prose or results (E29)")
 
     def test_owner_transcript_lines(self):
         import importlib.util
@@ -291,6 +302,56 @@ class TestEvalPrivacy(unittest.TestCase):
         self.assertEqual(segs, [{"speaker": "मी", "text": "नमस्कार, कसे आहात?"},
                                 {"speaker": "बाबा", "text": "ठीक आहे: आणि तू?"}])
         self.assertEqual(bad, [5])
+
+
+class TestMemoryCheck(unittest.TestCase):
+    def test_enough(self):
+        from pipeline import resources
+        self.assertTrue(resources.enough(6.5, None))        # unknown headroom never blocks a run
+        self.assertTrue(resources.enough(6.5, 7.0))
+        self.assertFalse(resources.enough(6.5, 1.7))         # the 2026-10-23 crash (E31)
+        self.assertTrue(resources.enough(0.0, 0.1))          # engines without a need are never stopped
+        h = resources.headroom_gb()
+        self.assertTrue(h is None or h >= 0)
+
+    def test_every_family_need_is_a_known_engine(self):
+        from pipeline.stages.recognise import FAMILY_TABLE
+        need = load_config("defaults")["runtime"].get("memory_gb", {})
+        self.assertTrue(set(need) <= set(FAMILY_TABLE))
+
+
+class TestEvalRun(unittest.TestCase):
+    def test_eval_keeps_the_language_override(self):
+        # E30: the second fixture of an eval was transcribed in the FIRST fixture's language
+        import json
+        import tempfile
+        from unittest import mock
+        from pipeline import evaluate
+        seen = []
+
+        def fake_transcribe(path, forced_recipe=None, case=None, engine=None, lang=None, runs_dir=None):
+            seen.append(lang)
+            run = runs_dir / f"{case}-{len(seen)}"
+            (run / "out").mkdir(parents=True)
+            (run / "report.json").write_text(json.dumps({"metrics": {"engines": ["x"], "language": "mr"}}))
+            (run / "out" / "transcript.json").write_text(json.dumps({"segments": [{"text": "मी येतो", "speaker": "SPK1"}]}))
+            return "OK", {"run_id": run.name, "verdict": "PASS", "recipe": "r"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            for fid, lang in (("a_en", "en"), ("b_mr", "mr")):
+                d = tmp / "fixtures" / fid
+                d.mkdir(parents=True)
+                (d / "audio.wav").write_bytes(b"")
+                (d / "truth.json").write_text(json.dumps({"schema": "trx.truth/1", "id": fid, "audio": "audio.wav",
+                                                          "language": lang, "reference_text": "मी येतो",
+                                                          "segments": [{"speaker": "A", "text": "मी येतो"}]}))
+            with mock.patch.multiple(evaluate, TRX_HOME=tmp, FIXTURES=tmp / "fixtures", EVAL_RUNS=tmp / "runs",
+                                     RESULTS=tmp / "results", COMPARE=tmp / "compare", BASELINE=tmp / "baseline.json"), \
+                    mock.patch("pipeline.run.transcribe", fake_transcribe):
+                res = evaluate.run_eval()
+        self.assertEqual(seen, [None, None])                       # no override -> each run measures its own
+        self.assertIsNone(res["overrides"]["lang"])
 
 
 class TestOfflineGuard(unittest.TestCase):

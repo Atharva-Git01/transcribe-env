@@ -52,14 +52,18 @@ def hypothesis_text(run_dir) -> str:
 
 
 def turns_without_text(turns: list[dict]) -> list[dict]:
-    """Turn rows as they may leave this PC: numbers and speaker labels, no words of the recording."""
-    return [dict({k: v for k, v in t.items() if k not in ("ref", "hyp")}, missing=not t.get("hyp"))
-            for t in turns]
+    """Turn rows as they may leave this PC: no words of the recording, and the truth's speaker names (often real
+    people) become A, B, C … in order of first appearance."""
+    names: dict = {}
+    for t in turns:
+        names.setdefault(t.get("ref_speaker"), chr(ord("A") + len(names)) if len(names) < 26 else f"S{len(names) + 1}")
+    return [dict({k: v for k, v in t.items() if k not in ("ref", "hyp")}, ref_speaker=names[t.get("ref_speaker")],
+                 missing=t["missing"] if "missing" in t else not t.get("hyp")) for t in turns]
 
 
 def _write_comparison(path, result: dict, text: bool) -> None:
     """Per-turn comparison for every fixture of this eval. text=True (evals/compare/, this PC only) shows the truth and
-    the output side by side; text=False (evals/results/, pushed) keeps only speakers and per-turn CER."""
+    the output side by side; text=False (evals/results/, pushed) keeps only speaker letters and per-turn CER."""
     lines = [f"# Eval {result['utc']} — environment {result['env_version']}", "",
              "| fixture | engine | CER | normalised | loose | std | WER | spk | missing turns | Hindi forms | RTF | verdict |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -112,10 +116,11 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
         tj = EVAL_RUNS / info["run_id"] / "out" / "transcript.json"
         hyp_segs = read_json(tj)["segments"] if tj.is_file() else []
         spk = speaker_accuracy(truth.get("segments", []), hyp_segs) if hyp_segs else None
-        lang = truth.get("language", "")
+        # the truth's language, for scoring only: `lang` stays the operator's override for every fixture (E30)
+        t_lang = truth.get("language", "")
         turns = turn_alignment(truth.get("segments", []), hyp_segs) if truth.get("segments") else []
         from .stages.cleanup import lang_forms
-        hindi = lang_forms("mr")[0] if lang == "mr" else frozenset()
+        hindi = lang_forms("mr")[0] if t_lang == "mr" else frozenset()
         hindi_forms = sum(1 for w in hyp.split() if w.strip(".,?!।") in hindi)
         std_ref = truth.get("reference_text_standard")
         rows.append({
@@ -125,11 +130,11 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             "seconds": round(time.time() - t0, 1), "run_id": info["run_id"],
             "flagged_time_ratio": report["metrics"].get("flagged_time_ratio"),
             "speaker_acc": spk, "speakers_found": report["metrics"].get("speakers_found"),
-            "cer_norm": round(cer_level(truth["reference_text"], hyp, lang, "norm"), 4),
-            "cer_loose": round(cer_level(truth["reference_text"], hyp, lang, "loose"), 4),
-            "cer_std": round(cer_level(std_ref, hyp, lang, "norm"), 4) if std_ref else None,
+            "cer_norm": round(cer_level(truth["reference_text"], hyp, t_lang, "norm"), 4),
+            "cer_loose": round(cer_level(truth["reference_text"], hyp, t_lang, "loose"), 4),
+            "cer_std": round(cer_level(std_ref, hyp, t_lang, "norm"), 4) if std_ref else None,
             "missing_turns": sum(1 for t in turns if not t["hyp"]), "turns": len(turns),
-            "hindi_forms": hindi_forms if lang == "mr" else None,
+            "hindi_forms": hindi_forms if t_lang == "mr" else None,
             "rtf": round((time.time() - t0) / max(1e-6, float(truth.get("duration_sec") or 1)), 2),
             "turn_rows": turns,
         })
@@ -138,8 +143,9 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
     RESULTS.mkdir(parents=True, exist_ok=True)
     COMPARE.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"eval_{result['utc'].replace(':', '').replace('-', '')}_{engine or 'default'}.json"
-    write_json(out, dict(result, rows=[dict(r, turn_rows=turns_without_text(r["turn_rows"])) for r in rows]))
-    _write_comparison(out.with_suffix(".md"), result, text=False)
+    public = dict(result, rows=[dict(r, turn_rows=turns_without_text(r["turn_rows"])) for r in rows])
+    write_json(out, public)
+    _write_comparison(out.with_suffix(".md"), public, text=False)
     _write_comparison(COMPARE / out.with_suffix(".md").name, result, text=True)
     result["file"] = str(out.relative_to(TRX_HOME))
     base = read_json(BASELINE) if BASELINE.is_file() else {"scores": {}}
@@ -155,6 +161,9 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
     if save_baseline:
         base.setdefault("scores", {})
         for r in rows:
+            if r["exit"] not in ("OK", "GATE_FAILED") or not r["engines"]:   # a run that stopped is no baseline
+                r["baseline_saved"] = False
+                continue
             base["scores"][r["key"]] = {"cer": r["cer"], "wer": r["wer"], "speaker_acc": r.get("speaker_acc"),
                                         "env_version": env_version(), "utc": result["utc"]}
         base["env_version"] = env_version()

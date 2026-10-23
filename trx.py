@@ -27,7 +27,7 @@ HELP = """trx {v} — local, offline transcription environment
   trx transcribe <file> [--lang mr|hi|en|auto] [--fast] [--recipe ID] [--style verbatim|readable] [--case NAME]
                                    full run: copy + hash, probe, choose recipe, plan, run stages, report.
                                    Without --lang it shows the detected language and asks first.
-                                   --fast = turbo engine (about 2x faster, less accurate)
+                                   --fast = Whisper turbo: only ~10 % quicker since 0.7.0, about twice the errors in Marathi
                                    --hotwords FILE = names/places/terms of this case, one per line
                                    An interrupted run of the same file continues where it stopped.
   trx watch [--once] [--interval SECONDS]

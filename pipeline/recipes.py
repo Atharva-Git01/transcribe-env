@@ -121,6 +121,7 @@ def build_plan(run_id: str, selection: dict, overrides: dict) -> dict:
         if name == "polish":
             params["vocabulary_enabled"] = defaults["vocabulary"]["enabled"]
             params["llm_cleanup_enabled"] = defaults["llm_cleanup"]["enabled"]
+            params["llm_cleanup_engines"] = list(defaults["llm_cleanup"].get("engines", []))
         stages.append({
             "name": name,
             "status": "pending" if is_available(name, params) else "not_installed",

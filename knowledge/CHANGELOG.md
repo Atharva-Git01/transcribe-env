@@ -3,6 +3,88 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.7.0 — 2026-10-23 (Indic engines; PLAN_v0.7)
+**Eval (seeded; same pipeline for every engine; new baseline saved).** CER (normalised CER in brackets).
+
+| Fixture | Whisper large-v3 (0.6.0) | IndicConformer-600M | **Indic-Transcribe-core (default)** |
+|---|---|---|---|
+| Pappa call (mr, phone, 2 speakers) | 0.513 (0.498) · spk 0.917 · 4/26 turns missing | 0.377 (0.368) · spk 0.966 · 5/26 | **0.379 (0.371)** · spk **0.975** · 4/26 |
+| FLEURS mr (10 read sentences) | 0.273 | 0.056 | **0.048 (0.030)** |
+| FLEURS hi (10 read sentences) | 0.072 | 0.034 | **0.021 (0.010)** |
+| FLEURS mr + music 5 dB below (new) | 0.606 (no Demucs; Demucs made it worse) | – | **0.383 (0.370)** with Demucs (0.445 without) |
+| AMI ES2004a, 4-person English meeting (new) | 0.308 · spk 0.895 · 32/57 | no English | **0.284** · spk 0.890 · 35/57 |
+
+- Pappa against the standard-spelling draft (`std`, QUESTIONS.md 16): 0.487 → **0.302**.
+- Speed, whole pipeline, real-time factor: Pappa 3.1 (Whisper large-v3 + Gemma: 4.4), FLEURS 2.3, AMI 2.4, music 3.6.
+  The Indic engines run
+  on the CPU.
+
+Engines (E24, E25)
+- **Indic-Transcribe-core** (Bodhan AI / AI4Bharat, 1.2B, Indic Open Model License v1.0) is the primary engine for
+  every language. It writes standard spelling, numbers as words and English words in Devanagari ("native" mode).
+- **IndicConformer-600M** (AI4Bharat, MIT; ONNX, CTC + RNNT) is the first fallback for mr/hi. Whisper remains the
+  last fallback, the `--fast` engine and the language-ID engine.
+- Both adapters (`pipeline/engines/`) load local files only, at pinned revisions (`SOURCE.json`, 404 + 21 files).
+  `from_pretrained` downloads are never called. Indic-Transcribe's code runs from its model folder, and a stand-in
+  replaces torchaudio, which it would only need for resampling (E25).
+- Settings per engine family, `[recognise.<family>]` in every recipe; `setup/` gained Hugging Face snapshots at a
+  pinned revision and `requirements-ml.lock` (PyTorch 2.14 CPU, transformers, sentencepiece, Demucs; sha256).
+
+Pipeline
+- **Each speaker turn decoded on its own** (`segmentation = "turns"`) for engines without word timings (E28).
+- **Demucs** music/TV separation: the probe measures music on a 10 s window. Rule R2b_music picks
+  `noisy_field_audio`, and its `separate` stage keeps the voice when the background is louder than −15 dB (E27).
+- **Gemma cleanup only for Whisper output** (`[llm_cleanup] engines`): with Indic-Transcribe it changed nothing (E26).
+- **Output convention (owner):**
+  - standard spelling (the engine's native mode)
+  - numbers as words (`library/numbers/mr.toml`, `hi.toml`; times are left as written and reported)
+  - English words in Devanagari (Indic-Transcribe; Whisper output still lists Latin words as `latin_script`)
+- **Quiet speech:** a VAD gap audit (E22), and missed-turn recovery with a plausibility check (E23).
+- **Rejected:** the speech guard (E21).
+
+Eval and privacy (E29)
+- `trx eval` now reports strict, normalised and loose CER; `std` CER against the standard-spelling draft; missing
+  truth turns; Hindi forms in Marathi output; and the real-time factor.
+- **`evals/results/` holds numbers only** (speakers anonymised as A, B, …). The truth-vs-output table per turn goes to
+  `evals/compare/`, which never leaves this PC.
+- The 0.7 WIP push had included the call's words. With the owner's OK the history was rewritten and force-pushed.
+- `trx test` now fails if any file git would push holds words of a private recording or run (`pipeline/privacy.py`).
+- **Fixed (E30):** an eval of several fixtures transcribed each fixture in the previous fixture's language.
+- **Memory check (E31):** a run stops with exit 51 `MEMORY_LOW` (and a next step) instead of crashing when the
+  1.2B model cannot fit in memory (`[runtime.memory_gb]`). `--save-baseline` never saves a run that stopped.
+- **Fixed (E32):** Demucs separated the same audio differently on every run (an unseeded random time shift).
+- **`--fast`** (Whisper turbo; Gemma cleanup still runs on its output) on the phone call: CER 0.771, speakers right
+  0.717, 8/26 turns missing, RTF 2.7 against 3.1 for the default. It no longer pays off (QUESTIONS.md 23).
+- **New fixtures:** FLEURS mr + music (`make_mix_fixture.py`) and AMI ES2004a, 3 minutes with 4 people
+  (`make_ami_fixture.py`). The owner's recordings go in with `setup/make_fixture.py`.
+- `trx test`: 32 tests (0.6.0: 26).
+
+Tried and rejected
+- **Whisper as cross-check engine** (verify) for Indic-Transcribe: it flagged 96 % of the phone call's lines and
+  60 % of the clean read Marathi (none of those lines was bad), so the verdicts became FAIL. Verify stays off.
+- **Indic-Transcribe's language ID in the probe:**
+  - It was right on 5/5 fixtures with P = 1.0 on every window. Whisper's acoustic top was Hindi for all three Marathi fixtures.
+  - The final decision is the same on every fixture, and it would add about 1 minute per file.
+  - The probe keeps Whisper. The adapter supports it if a misguess appears (`[languages] lid_engines`).
+- **Longer pieces (VAD groups ≤ 30 s) for Indic-Transcribe:** CER 0.357, but speakers right fell to 0.696 (E28).
+- **Finer diarization on the phone call** (not adopted, to re-test on the owner's recordings):
+
+  | Setting | CER | Speakers right | Missing turns |
+  |---|---|---|---|
+  | 1.0 s windows (kept) | 0.379 | 0.975 | 4/26 |
+  | switch penalty 0.05 | 0.374 | 0.976 | 4/26 |
+  | 0.75 s windows | 0.355 | 0.955 | 4/26 |
+  | 0.75 s windows + switch penalty 0.05 | 0.359 | 0.948 | 3/26 |
+
+  With 0.75 s windows CER improves by about 0.02 and speaker accuracy drops by about 0.02, measured on one 56-second
+  call. That is too small to decide on one fixture (MAINTAINER.md).
+
+Not solved yet
+- **Short replies in fast exchanges:** 4 of 26 Pappa turns still have no text of their own.
+  - Three of Whisper's four misses are now written: two short replies and the quiet sentence.
+  - The new misses are short turns that diarization merged into a neighbour's turn.
+- **Speed:** RTF ~3 on the CPU. The CUDA build of PyTorch could move Indic-Transcribe to the GPU (QUESTIONS.md 20).
+
 ## 0.6.0 — 2026-10-22 (owner decisions implemented)
 **Eval (seeded; baseline saved):**
 

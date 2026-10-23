@@ -28,10 +28,13 @@ except ImportError:
 
 def _separate(x: np.ndarray, sr: int, params: dict) -> tuple[np.ndarray, np.ndarray]:
     """mono float32 at sr -> (vocals, background) mono at sr."""
+    import random
+
     import torch
     from demucs.apply import apply_model
     from demucs.pretrained import get_model
     torch.manual_seed(0)
+    random.seed(0)          # Demucs draws its time shift from Python's random, not torch (E32): same input, same output
     model = get_model(params.get("model", "htdemucs"), repo=MODEL_DIR)
     model.eval()
     wav = torch.from_numpy(np.stack([x, x])).float()

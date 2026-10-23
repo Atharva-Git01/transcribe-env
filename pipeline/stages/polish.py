@@ -232,9 +232,16 @@ def run(ctx: Ctx, params: dict) -> None:
                 "Doubtful text is kept and marked for review, never silently deleted (E02).")
 
     defaults = load_config("defaults")
-    if defaults["llm_cleanup"]["enabled"]:
+    llm = defaults["llm_cleanup"]
+    primary = [e["engine"] for e in ctx.engines_used if e.get("role") != "cross_check"]
+    families = list(llm.get("engines", []))
+    if llm["enabled"] and (not families or any(e.startswith(f) for e in primary for f in families)):
         from . import cleanup
-        cleanup.run(ctx, defaults["llm_cleanup"])
+        cleanup.run(ctx, llm)
+    elif llm["enabled"]:
+        ctx.log.add("polish", f"LLM cleanup skipped for {', '.join(primary) or 'this engine'}",
+                    f"config/defaults.toml [llm_cleanup].engines = {families}: with this engine the cleanup changed "
+                    "nothing in eval and only cost time (E26).")
     else:
         ctx.log.add("polish", "LLM cleanup off", "config/defaults.toml [llm_cleanup].enabled = false.")
 

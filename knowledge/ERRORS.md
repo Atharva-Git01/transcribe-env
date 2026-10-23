@@ -203,5 +203,107 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   never said (one word twice in a row, a filler word four times). CER 0.513 → 0.566, although missing turns fell from 4 to 1.
 - **Fix:** recovered text must pass `_plausible()` (no loop or repeated words, no character runs, avg log-prob ≥ −0.8,
   no-speech ≤ 0.5) and is flagged `recovered_turn` (soft). With Whisper nothing passed on this call, so CER is back
-  to 0.513. Recovery stays on for engines trained on short utterances (Indic models).
+  to 0.513. In `turns` mode (the Indic engines, E28) every turn is already decoded on its own, so recovery only runs
+  in the other modes.
 - **Rule:** text produced from a few hundred milliseconds of audio is guilty until proven plausible.
+
+## E24 — A week of tuning around a weak recogniser gained 0.02; a better recogniser gained 0.13
+- **Seen (2026-10-23):** every fix for the Pappa call since 0.5.0 (LID, denoise, diarization, Gemma word gate, language
+  model) moved CER 0.531 → 0.513. Even clean read Marathi (FLEURS) stayed at 0.273 with Whisper large-v3.
+- **Why:** Whisper's training is Hindi-heavy (E10). Wrong Marathi words and Hindi forms came from the model itself.
+- **Fix:** same pipeline, different engine. Indic-Transcribe-core (Bodhan AI / AI4Bharat) is now primary for every
+  language: Pappa 0.513 → **0.379**, FLEURS mr 0.273 → **0.048**, FLEURS hi 0.072 → **0.021**, AMI (en) 0.308 → 0.284.
+  IndicConformer-600M (0.377 / 0.056 / 0.034, no English) is the first fallback for mr/hi. Whisper stays for `--fast`,
+  for language ID and as the last fallback.
+- **Check:** `trx eval` (all fixtures, normalised CER and `spk`).
+- **Rule:** when every tuning attempt hits the same wall, measure a different model before tuning further.
+
+## E25 — Indic-Transcribe needs torchaudio only to resample, which never happens here
+- **Seen (2026-10-23):** the model's code imports torchaudio, which is not installed (a 300 MB+ package for one unused
+  path). Two failures while working around it: `ValueError: torchaudio.__spec__ is None` (transformers checks the
+  module spec), then `UnboundLocalError: importlib` (a local import shadowed the module).
+- **Fix:** `_torchaudio_stand_in()` in `pipeline/engines/indic_transcribe_engine.py` imports transformers first (so it
+  still sees torchaudio as absent), then registers a stand-in module with a real `ModuleSpec`. Any resampling call
+  raises: the environment always passes 16 kHz audio (ffmpeg).
+- **Rule:** never install a package for a code path the environment cannot reach; stub it so any use fails loudly.
+
+## E26 — Gemma cleanup proven for Whisper changed nothing for Indic-Transcribe
+- **Seen (2026-10-23):** cleanup off → on with Indic-Transcribe: Pappa 0.379 → 0.379, FLEURS mr 0.048 → 0.049,
+  FLEURS hi 0.021 → 0.021, music 0.383 → 0.382 (seeded Demucs, E32), while the run took ~15 % longer (Pappa RTF 3.14 → 3.65). The engine already writes
+  standard Marathi, so the word gate found almost nothing to keep.
+- **Fix:** `[llm_cleanup] engines = ["faster_whisper"]` in `config/defaults.toml`: Gemma runs only on Whisper output
+  (where it still gains 0.531 → 0.513). The decision log says when it is skipped.
+- **Rule:** a post-processing step proven for one engine must be proven again for the next.
+
+## E27 — Music separation hurt Whisper but helps Indic-Transcribe
+- **Seen (2026-10-23, FLEURS Marathi + music 5 dB below the speech):** Whisper large-v3: no Demucs 0.606, voice only
+  0.657, voice + background at −12 dB 0.651. Indic-Transcribe: no Demucs **0.445**, Demucs voice only **0.383**
+  (seeded, E32; unseeded runs varied 0.358–0.383, Whisper's Demucs runs by as much).
+- **Fix:** Demucs (htdemucs) stays on in `noisy_field_audio` (chosen by rule R2b_music when the probe measures music),
+  applied only when the background is above −15 dB relative to the speech.
+- **Rule:** audio pre-processing is judged per engine; re-measure it after every engine change.
+
+## E28 — Text without word timings cannot be split at speaker changes
+- **Seen (2026-10-23, Pappa call):** Indic-Transcribe on speech pieces of up to 30 s: CER 0.357 but speaker accuracy
+  **0.696** and 19 of 26 turns without their own text. The engine returns one text per piece and no word timings,
+  so a piece spanning two people cannot be split between them.
+- **Fix:** `segmentation = "turns"` in `[recognise.indic_transcribe]` and `[recognise.indic_conformer]` of every recipe:
+  each diarization turn (same-speaker turns merged up to 30 s) is decoded on its own. CER 0.379, speaker accuracy
+  **0.975**, 4 of 26 turns missing. The model card also says shorter pieces cost a little accuracy; the owner's rule
+  (diarization on every file) makes speakers the priority.
+- **Rule:** an engine without word timings is always decoded per speaker turn.
+
+## E29 — The words of the private call were pushed to GitHub inside eval results
+- **Seen (2026-10-23):** the per-turn comparison added to `trx eval` (v0.7 WIP) wrote the truth AND the output text of
+  every fixture into `evals/results/*.json/.md`, a tracked folder. Commit e07e138 pushed all 26 turns of the Pappa call
+  to the private repo, against the owner's rule "keep the call off GitHub". Test strings had also been copied from
+  the call (since 0.6.0), two words of it sat in the metric self-test (since phase 0), and single misheard words of
+  it were quoted in E17 and QUESTIONS.md. The truth's speaker labels went into the results as well.
+- **Fix:** `evals/results/` holds numbers only (`turns_without_text()` in `pipeline/evaluate.py`: no text, speaker
+  names → A, B, …); truth vs output per turn goes to `evals/compare/`, which is git-ignored. Test strings and examples
+  are now made up. With the owner's OK the history was rewritten (every commit scanned clean) and force-pushed.
+  GitHub keeps the old commit reachable by its direct link until GitHub Support purges it (QUESTIONS.md 19b).
+- **Check:** `trx test` → `TestEvalPrivacy`: `pipeline/privacy.py` looks for 3-word sequences of every private fixture
+  (truth and all machine transcripts kept on this PC) and of every run in `runs/` in all files git would push, and
+  for their single rare words (corpus count < 200) in docs, code, tests and results.
+- **Rule:** nothing derived from a private recording goes into a tracked folder; test strings are invented, never
+  copied from evidence; run `trx test` before every push.
+
+## E30 — An eval of several fixtures transcribed each one in the previous fixture's language
+- **Seen (2026-10-23):** the first full `trx eval` with Indic-Transcribe (all 5 fixtures in one process) wrote romanised
+  loops for FLEURS Hindi ("John John John …"): it had been forced to English. `run_eval()` reused the name `lang`, the
+  operator's `--lang` override, for the truth's language while scoring. From the second fixture on, every fixture
+  was transcribed in the previous fixture's language. The 0.7 numbers before this came from one-fixture evals and
+  are unaffected; 0.6.0 predates the bug.
+- **Fix:** the truth's language has its own name (`t_lang`); `--lang` reaches every fixture unchanged.
+- **Check:** `tests/test_core.py::TestEvalRun` (two fake fixtures, English then Marathi).
+- **Rule:** never reuse a parameter's name for a per-item value inside a loop; a full eval must agree with
+  one-fixture evals of the same configuration.
+
+## E31 — The PC ran out of memory while loading Indic-Transcribe
+- **Seen (2026-10-23):** three eval runs crashed while the 1.2B model loaded on the CPU: `OSError: The paging file is
+  too small for this operation to complete (os error 1455)` and `MemoryError`. A whole Indic-Transcribe run peaks at
+  ~7.0 GB of committed memory (6.3 GB in RAM). The PC has 15.6 GB of RAM; a web browser held 4.7 GB and the Claude app
+  3.0 GB. The page file did not grow, even with 5.5 GB free on C:. A crashed run with `--save-baseline` also wrote
+  CER 1.0 into `evals/baseline.json`.
+- **Fix:**
+  - Before loading an engine, recognise compares the free memory (RAM + page file, `pipeline/resources.py`) with
+    `[runtime.memory_gb]` (Indic-Transcribe 5.5 GB, IndicConformer 3 GB). Below it, the run stops with exit 51
+    `MEMORY_LOW`, and the next step is to close big programs or restart.
+  - An out-of-memory crash anywhere in a run is reported as `MEMORY_LOW` too.
+  - `--save-baseline` skips runs that stopped.
+  - With the browser closed, the evals ran.
+- **Check:** `tests/test_core.py::TestMemoryCheck`; exit code 51 in `config/exit_codes.toml`.
+- **Rule:** measure a CPU model's memory need, configure it, and check it before loading. On a PC shared with daily
+  work, the free memory decides whether a run can start.
+
+## E32 — Demucs separated the same audio differently on every run
+- **Seen (2026-10-23):** the music fixture scored 0.358 in one run and 0.376 in a later one. The configuration was
+  the same, and the per-turn changes went both ways.
+- **Why:** with `shifts = 1`, Demucs offsets the audio by a random 0–0.5 s drawn from Python's `random` module, which
+  `torch.manual_seed` does not touch. Two offsets changed the separated voice by −14.9 dB relative to the voice:
+  enough to change the words. The probe's music check (Demucs on 10 s) had the same randomness.
+- **Fix:** `random.seed(0)` next to `torch.manual_seed(0)` in `pipeline/stages/separate.py`. The same 10 s now
+  separate bit-identically, and two eval runs of the music fixture give the same CER.
+- **Rule:** seed every random generator a library uses (Python, NumPy, torch), not only one, and prove it by running
+  the same input twice (E18).

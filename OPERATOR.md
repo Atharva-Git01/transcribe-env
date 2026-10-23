@@ -39,7 +39,7 @@ Quote paths that contain spaces.
 | "readable transcript" | `--style readable` (default is forensic verbatim) |
 | "it is Marathi / Hindi / English" | `--lang mr` / `--lang hi` / `--lang en` |
 | "call the case Y" | `--case Y` |
-| "it's urgent / quick draft" | `--fast` (turbo engine: about 2x faster, less accurate) |
+| "it's urgent / quick draft" | `--fast` (Whisper turbo: since 0.7.0 only ~10 % quicker, with about twice the mistakes on Marathi calls) |
 | "these names/places are in it" | `--hotwords <file>` (the owner's text file: one name/place/term per line) |
 | "don't ask about the language" | `--lang auto` (uses the measured guess; a weak guess makes the run REVIEW) |
 
@@ -52,11 +52,18 @@ Quote paths that contain spaces.
 - Never install, download or update anything; never connect the environment to the internet.
 - Never retry the same file more than once without a different instruction from the owner.
 - Never present a transcript as final if the verdict is `REVIEW` or `FAIL`.
+- Never copy words of a transcript or recording into a file outside `runs/` (they are private evidence), and never
+  push anything to GitHub (that is the maintainer's job, after `trx test`).
+- Never offer this environment as a service that other people or companies use: the Indic-Transcribe licence needs
+  Bodhan AI's written approval for that.
 
 ## What to expect
 
-- A 1-minute phone call takes about 3–5 minutes (large-v3 + speaker separation); with `--fast` about 2.
+- A 1-minute phone call takes about 3 minutes (Indic-Transcribe on the CPU + speaker separation). `--fast` saves only
+  about 10 % and makes about twice as many mistakes in Marathi.
 - `REVIEW` is normal for hard phone audio: it means some lines are uncertain, not that the run broke.
 - If the last line says `MODEL_MISSING`: a model folder in `toolchain/models/` is missing. Report it;
   do not try to fix it.
 - If the last line says `DISK_LOW`: report it; do not delete anything.
+- If the last line says `MEMORY_LOW`: the speech model needs about 5.5 GB of free memory. Ask the owner to close big
+  programs (web browsers first) or restart the PC, then run the same command again.
