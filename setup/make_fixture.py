@@ -6,6 +6,8 @@ this PC only (evals/fixtures/*/ is git-ignored): never push a private recording 
 The transcript is a UTF-8 text file with one turn per line, `speaker: text`, in the order spoken. Blank lines and
 lines starting with # are skipped. Write it in the output convention (standard spelling, numbers as words, English
 words in Devanagari). The audio is copied unchanged (any format ffmpeg reads); its sha256 goes into truth.json.
+If the transcript stops before the recording ends, add `--scored-until <seconds>` (where it stops): otherwise every
+line after that point counts as an error (E39).
 """
 from __future__ import annotations
 
@@ -51,6 +53,8 @@ def main() -> int:
     ap.add_argument("--text", required=True, help="UTF-8 file, one `speaker: text` line per turn")
     ap.add_argument("--lang", required=True, choices=sorted(LANGS))
     ap.add_argument("--notes", default="")
+    ap.add_argument("--scored-until", type=float, default=None, metavar="SECONDS",
+                    help="the transcript covers only the start of the recording: score output lines starting before this")
     a = ap.parse_args()
     if not re.fullmatch(r"[a-z0-9_]{3,60}", a.id):
         print("--id: use 3-60 lower-case letters, digits or _")
@@ -79,6 +83,8 @@ def main() -> int:
         "source": f"owner recording {audio.name}, manual transcript {text.name} (added {date.today().isoformat()})",
         "notes": a.notes or f"{len(speakers)} speakers, {len(segs)} turns",
     }
+    if a.scored_until:
+        truth["scored_until_sec"] = a.scored_until
     (out / "truth.json").write_text(json.dumps(truth, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"{a.id}: {len(segs)} turns, speakers {speakers}, {truth['duration_sec']} s -> {out}")
     return 0

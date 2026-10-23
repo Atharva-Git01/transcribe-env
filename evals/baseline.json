@@ -57,6 +57,13 @@
       "speaker_acc": 0.9663,
       "env_version": "0.8.1",
       "utc": "2026-10-23T14:26:14Z"
+    },
+    "call_240509_20min|phone_call_mono|indic_transcribe_core|mr": {
+      "cer": 0.2316,
+      "wer": 0.478,
+      "speaker_acc": 0.9858,
+      "env_version": "0.8.1",
+      "utc": "2026-10-23T16:16:12Z"
     }
   },
   "references": {

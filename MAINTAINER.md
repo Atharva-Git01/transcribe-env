@@ -37,6 +37,11 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
   (git-ignored). Public test sets are rebuilt by `setup/setup.py install --phase 6` (see `setup/sources.toml`).
 - `trx eval` reports strict / normalised / loose CER, WER, `spk` (speaker accuracy, truth with ≥ 2 speakers),
   missing truth turns, Hindi forms in Marathi output and the real-time factor.
+- Under each fixture, the failure monitor (`how:` line, E39) says how it went wrong: content CER (spelling
+  conventions folded away), turn outcomes (correct / misheard / merged / lost / lost backchannel / wrong speaker),
+  negations and numbers lost or added, short lines (< 2 s) against long ones, and how many of the worst lines carry
+  a review flag. Read it for every change: a change can keep the CER and still flip meanings or lose replies.
+- A truth that stops before the recording ends gets `scored_until_sec` (E39); otherwise the rest counts as errors.
 - `evals/results/` is pushed to GitHub and holds numbers only (speaker names become A, B, …). The truth-vs-output
   table per turn is written to `evals/compare/`, which never leaves this PC. Never copy a private fixture's words
   into any tracked file, including test strings and ERRORS examples (E29).

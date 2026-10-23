@@ -1,0 +1,8 @@
+# Hindi word lists for the eval's failure monitor (pipeline/metrics.py, E39). Generic language, never words of a case.
+
+backchannels = ["हाँ", "हां", "हम्म", "जी", "अच्छा", "ठीक", "हूँ", "ओके", "हैलो"]
+negations = ["नहीं", "नही", "मत"]          # not "ना": mostly a tag word ("चलो ना")
+negation_stems = []
+joined = []
+not_negation = []
+number_endings = ["का", "की", "के", "को", "में", "से", "तक", "ों"]

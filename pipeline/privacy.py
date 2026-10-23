@@ -26,7 +26,7 @@ def _texts_of(path: Path) -> list[str]:
 
 
 def private_texts(home: Path = TRX_HOME) -> list[str]:
-    texts = []
+    texts, open_ids = [], set()
     for d in sorted((home / "evals" / "fixtures").glob("*/")):
         tj = d / "truth.json"
         if not tj.is_file():
@@ -36,9 +36,13 @@ def private_texts(home: Path = TRX_HOME) -> list[str]:
         except ValueError:
             continue
         if OPEN_LICENCE.search(str(truth.get("source", ""))):
+            open_ids.add(d.name)
             continue
         texts += _texts_of(tj)
-        for t in (home / "evals" / "runs").glob(f"eval_{d.name}-*/out/transcript.json"):
+    # an eval run (evals/runs/eval_<fixture>-<date>-<time>) is private unless its fixture is open: the runs of a
+    # renamed or removed fixture stay private (E39)
+    for t in (home / "evals" / "runs").glob("eval_*/out/transcript.json"):
+        if t.parents[1].name[len("eval_"):].rsplit("-", 2)[0] not in open_ids:
             texts += _texts_of(t)
     for t in (home / "runs").glob("*/out/transcript.json"):
         texts += _texts_of(t)
@@ -66,6 +70,19 @@ COMMON_MIN = 200                     # corpus count (lm-mr/hi unigrams) below wh
 GENERIC = ("library/", "prompts/", "references/")
 
 
+def generic_words(home: Path = TRX_HOME) -> set[str]:
+    """Words already in library/, prompts/ and references/: generic speech (fillers such as a written "hmm",
+    backchannels, common colloquial forms) kept there on purpose and pushed anyway, so never a sign of a leak (E39)."""
+    words = set()
+    for rel in pushable_files(home):
+        if rel.startswith(GENERIC):
+            try:
+                words |= set(WORD.findall((home / rel).read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError):
+                continue
+    return words
+
+
 def rare_word_leaks(home: Path = TRX_HOME) -> list[tuple[str, int, list[str]]]:
     """Single rare words of private texts (colloquial or misheard forms; corpus count < COMMON_MIN) in prose and
     results. library/, prompts/ and references/ are left out: they hold generic colloquial Marathi on purpose."""
@@ -73,8 +90,9 @@ def rare_word_leaks(home: Path = TRX_HOME) -> list[tuple[str, int, list[str]]]:
     models = [m for m in (lm.load("mr"), lm.load("hi")) if m is not None]
     if not models:
         return []
+    generic = generic_words(home)
     rare = {w for t in private_texts(home) for w in WORD.findall(t)
-            if len(w) >= 2 and max(m.count(w) for m in models) < COMMON_MIN}
+            if len(w) >= 2 and w not in generic and max(m.count(w) for m in models) < COMMON_MIN}
     if not rare:
         return []
     files = [r for r in pushable_files(home) if not r.startswith(GENERIC) and any(Path(r).match(g) for g in PROSE)]

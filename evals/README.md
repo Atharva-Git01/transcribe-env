@@ -8,9 +8,11 @@
 ```
 { "schema": "trx.truth/1", "id": "...", "audio": "audio.m4a", "audio_sha256": "...", "language": "mr",
   "speakers": [...], "reference_text": "...", "segments": [{"speaker": "...", "text": "..."}],
-  "source": "...", "notes": "..." }
+  "source": "...", "notes": "...", "scored_until_sec": 720.0 }
 ```
 Ground truth must be human-verified. Best source: transcripts the owner corrects after real runs.
+`scored_until_sec` (optional): the truth covers only the start of the recording; only output lines that start before
+it are scored, the run itself still processes the whole file (E39). `setup/make_fixture.py --scored-until <s>`.
 
 ## Metrics (pipeline/metrics.py)
 - **CER** (primary for Marathi/Hindi) and WER, with one fixed normalisation (NFC, lowercase, punctuation and tags
@@ -23,6 +25,21 @@ Ground truth must be human-verified. Best source: transcripts the owner corrects
   real-time factor.
 - Diarization error rate (DER) is not scored: no fixture has timed speaker turns.
 - Every decode is seeded (E18), so the same configuration must reproduce the same numbers exactly.
+
+### Failure monitor: HOW it went wrong (E39; the `how:` line under each fixture, and in results/compare)
+- **content CER:** CER after folding spelling conventions (colloquial vs standard Marathi forms, word-final
+  anusvara, s/sh, n/retroflex n, "-ye" contractions) and hesitation fillers on BOTH sides. What is left is misheard,
+  missing or extra words. On the owner's 20-minute call the conventions were 14 % of the CER.
+- **turn outcomes:** each truth turn is `correct` (≥ 85 % of its characters), `misheard`, `lost`,
+  `lost_backchannel` (an acknowledgement that vanished), `merged` (its words are in a line of a neighbouring turn of
+  the same speaker: the reply between them was lost — the old "missing turns" counted this as missing),
+  `merged_other` / `wrong_speaker` (its words are under the other speaker). The compare file has it per turn.
+- **negations / numbers:** a negation or number word lost, changed or added — a fluent line whose meaning flipped.
+  Word lists: `library/scoring/<lang>.toml`. A year written in digits in the truth is read as a plain number
+  ("one thousand nine hundred …") while speakers say the year form: FLEURS mr counts 2 such words.
+- **lines < 2 s vs longer:** content CER of short output lines (mostly the listener's replies) against the rest.
+- **bad lines flagged:** of the output lines with > 40 % content errors, how many carry a review flag (anything but
+  the info flags). This is the share of the worst lines a reviewer is pointed to.
 
 ## Where results go
 - `results/eval_<time>_<engine>.json` + `.md`: numbers only (speakers as A, B, …). Pushed to GitHub.
@@ -46,5 +63,6 @@ Ground truth must be human-verified. Best source: transcripts the owner corrects
 | fleurs_hi_test10 | hi | 122.6 s | FLEURS test (CC-BY-4.0), 10 read sentences | CER 0.021 |
 | fleurs_mr_test10_music5db | mr | 127.7 s | fleurs_mr_test10 + public-domain music 5 dB below the speech | CER 0.305 |
 | ami_es2004a_450s | en | 180 s | AMI meeting ES2004a, 450–630 s (CC-BY-4.0); 4 speakers, 57 turns | CER 0.249 · spk 0.887 |
+| call_240509_20min | mr | 1234.7 s | owner's real phone call (private), 2 speakers; the owner's transcript covers 0:00–12:00 (163 turns, colloquial spelling) → `scored_until_sec` 720 | CER 0.232 · content 0.192 · spk 0.986 |
 
 Wanted: 5–10 short labelled real recordings from the owner (`setup/make_fixture.py`).

@@ -7,6 +7,7 @@
    - 0: estimated by splitting clusters while the two halves are less similar than `split_cosine` (at most
      `max_speakers`; every speaker needs `min_speaker_s` of speech). Marked "estimated" — not validated yet.
 4. Viterbi smoothing with a switching penalty (`switch_penalty`): speakers do not change every quarter second.
+   Across a pause of at least `pause_min_s` the cost is `switch_penalty_pause` (lower: turns change at pauses, E39).
 5. Turns = runs of one speaker; turns shorter than `min_turn_s` join their neighbour.
 Measured on the Pappa call (2 parties, mono narrowband): 94.5 % of words get the right speaker
 (pyannote-segmentation pipeline: <= 71 %, everything-one-speaker: 54 %).
@@ -103,11 +104,28 @@ def estimate(X: np.ndarray, hop: float, max_k: int, split_cos: float, min_speake
     return lab
 
 
-def viterbi(S: np.ndarray, penalty: float) -> np.ndarray:
+def penalties(wins, speech, inside: float, at_pause: float, pause_min: float) -> np.ndarray:
+    """Cost of a speaker change before each window: `at_pause` when the window starts a speech region that follows
+    at least `pause_min` s of silence (people take turns at pauses: a short reply between two pauses keeps its own
+    speaker, E39), else `inside`."""
+    pen, k, prev = np.full(len(wins), float(inside)), 0, None
+    for t, (s, _) in enumerate(wins):
+        while k + 1 < len(speech) and s >= speech[k + 1][0] - 1e-6:
+            k += 1
+        if prev is not None and k != prev and speech[k][0] - speech[prev][1] >= pause_min:
+            pen[t] = at_pause
+        prev = k
+    return pen
+
+
+def viterbi(S: np.ndarray, penalty) -> np.ndarray:
+    """penalty: cost of a speaker change between neighbouring windows; one number or one per window (index t = the
+    change between windows t-1 and t)."""
     T, K = S.shape
+    pen = np.broadcast_to(np.asarray(penalty, dtype=float), (T,))
     D, B = S[0].copy(), np.zeros((T, K), dtype=int)
     for t in range(1, T):
-        cand = D[:, None] - penalty * (1 - np.eye(K))      # [from, to]
+        cand = D[:, None] - pen[t] * (1 - np.eye(K))      # [from, to]
         B[t] = cand.argmax(0)
         D = cand.max(0) + S[t]
     path = [int(D.argmax())]
@@ -177,7 +195,9 @@ def diarize(audio: np.ndarray, speech, params: dict) -> tuple[list[dict], dict]:
         C /= np.linalg.norm(C, axis=1, keepdims=True) + 1e-9
         how = f"estimated: {k} speaker(s) (not validated on labelled multi-speaker audio yet)"
     if k > 1:
-        lab = viterbi(X @ C.T, float(params.get("switch_penalty", 0.1)))
+        inside = float(params.get("switch_penalty", 0.1))
+        lab = viterbi(X @ C.T, penalties(wins, speech, inside, float(params.get("switch_penalty_pause", inside)),
+                                         float(params.get("pause_min_s", 0.2))))
     turns = turns_from(wins, lab, speech, hop, float(params.get("min_turn_s", 0.3)))
     cos = float(np.min(C @ C.T)) if k > 1 else 1.0
     return turns, dict(info, speakers=k, how=how, min_centroid_cosine=round(cos, 3))

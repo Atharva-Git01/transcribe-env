@@ -2,7 +2,7 @@
 
 [recipe]
 id = "phone_call_mono"
-version = 8
+version = 9
 description = "Telephone-band call recorded on one channel (or two identical channels). Marathi/Hindi likely."
 when_to_use = "bandwidth.class == narrowband; layout mono or duplicated_mono; SNR >= 12 dB."
 when_not_to_use = "Two genuinely different channels (use true_stereo_call); heavy noise (noisy_field_audio)."
@@ -45,6 +45,8 @@ num_speakers = 2                  # a phone call has two parties (E19: estimatin
 window_s = 1.0
 hop_s = 0.25
 switch_penalty = 0.1              # smoothing: cost of changing speaker between neighbouring windows
+switch_penalty_pause = 0.02       # ... and across a pause of at least pause_min_s: replies happen at pauses (E39)
+pause_min_s = 0.2
 min_turn_s = 0.3
 
 [recognise]

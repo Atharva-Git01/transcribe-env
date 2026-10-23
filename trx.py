@@ -176,6 +176,9 @@ def main(argv: list[str]) -> int:
                 out(f"{r['fixture']:<28} {r['recipe'] or '-':<22} {'+'.join(r['engines'])[:30] or '-':<30} "
                     f"{r['cer']:>6.3f} {r['cer_norm']:>6.3f} {r['wer']:>6.3f} {base:>6} {spk:>5} "
                     f"{str(r['missing_turns']) + '/' + str(r['turns']):>5} {r['rtf']:>5} {r['verdict']:<7}")
+                if r.get("monitor"):
+                    from pipeline.evaluate import monitor_line
+                    out(f"  how: {monitor_line(r['monitor'])}")
             for reg in res["regressions"]:
                 out(f"REGRESSION {reg}")
             out(f"saved {res['file']} (+ .md; truth vs output per turn: evals/compare/, this PC only)" + (" and updated evals/baseline.json" if args.save_baseline else ""))

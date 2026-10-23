@@ -412,3 +412,53 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   - Wider turn margins (0.3 s instead of 0.1 s): AMI got worse (0.299). Rejected.
 - **Rule:** re-measure every pre-processing step after an engine change (E27 again); a step that helped one engine
   can hurt the next.
+
+## E39 — The owner's 20-minute call: a half transcript, and failures the CER could not show
+- **Seen (2026-10-23):** the owner's 20:35 Marathi phone call (fixture `call_240509_20min`, private) and the owner's
+  transcript. First things that went wrong in the eval, then what the full failure check found.
+  - **The transcript stops at 12:00.** The first eval scored the 8.5 untranscribed minutes as inserted errors: CER
+    0.925, WER 1.18. Per minute, up to minute 11 about 80 % of the output characters matched the truth, from minute
+    12 almost none. With only the lines that start before 720 s: CER 0.232 (Pappa: 0.361), spk 0.986.
+  - **"Missing turns" (20 of 163) was misleading.** 8 of them were merged: two lines of one speaker joined because
+    the other speaker's short reply between them was lost. Their words are in the output.
+  - **Spelling conventions are 14 % of the CER.** The owner's transcript is colloquial (contractions, colloquial
+    negation, s for sh, no word-final anusvara); the output writes standard spelling, the owner's convention.
+    Folding the conventions on both sides: 0.232 → 0.198. The other 86 % is content: substituted 376, missing 312
+    and extra 436 characters (part of the "extra" is real speech the transcript skipped).
+  - **The listener's short turns are the weakest part.** 9 of ~30 acknowledgements were lost, 5 short
+    interjections went under the other speaker. Lines under 2 s: content CER 0.28, longer lines 0.18. Decoded on its
+    own, a short turn comes back with words nobody said: English words, personal names, unrelated phrases (the
+    Indic-Transcribe form of E23).
+  - **Meaning changes cost few characters.** Of 60 negations in the truth, about 10 were lost or added (a future
+    "will happen" became "will not happen"; a "don't" appeared from nowhere); a phrase with an amount became an
+    unrelated, damaging phrase. Numbers: 1 real error in 35.
+  - **Names are not stable within one call:** one surname came out in four forms; a surname nobody said appeared.
+  - **The review flags miss the bad lines.** Of the 17 lines with > 40 % content errors, 1 carried a review flag.
+    Indic-Transcribe returns no confidence. Language-model fluency is a weak substitute: flagging 42 % of the lines
+    would catch 56 % of the bad ones (Spearman −0.29), so it was not made a flag.
+  - **Fine:** 20 minutes at real-time factor ~0.7–0.8, no memory problem, no detected speech left without text, and
+    the unscored 8.5 minutes look like the scored part (fluency, unknown words; read through as Marathi).
+- **Why:** the scores only said how much was wrong. Every number above came from a one-off analysis script; the
+  next change would have been judged on CER alone.
+- **Fix:**
+  - `scored_until_sec` in truth.json (`setup/make_fixture.py --scored-until`): only output lines that start before
+    it are scored.
+  - **Failure monitor in `trx eval`** (`pipeline/metrics.py`, `evals/README.md`): content CER, turn outcomes
+    (correct / misheard / merged / lost / lost backchannel / wrong speaker), negations and numbers lost or added
+    (`library/scoring/<lang>.toml`), short lines against long lines, bad lines that carry a review flag. Numbers
+    only in results; the turn-by-turn evidence stays in `evals/compare/`.
+  - Alignment rows in numpy and a bit-parallel distance: identical results (checked in `self_test`), the 20-minute
+    alignment 24.7 s → 1.1 s.
+  - **Diarization:** a speaker change across a pause of ≥ 0.2 s now costs 0.02 instead of 0.1 (phone recipe,
+    `switch_penalty_pause`). On the call: wrong speaker 6 → 4, merged 8 → 6, spk 0.986 → 0.987, CER 0.2316 →
+    0.2318 (noise). Pappa identical. On the meeting recipe it made AMI worse (CER 0.249 → 0.254, spk 0.887 →
+    0.876, wrong speaker 6 → 8): four people interrupt each other without pauses. Phone recipe only.
+  - Privacy: renaming the fixture (its first name held a place and surname from the call) showed that eval runs
+    counted as private only under their fixture's current name; now every eval run is private unless its fixture is
+    open-licensed. A written filler in code matched the call; words that `library/` holds on purpose no longer count
+    as leaks.
+- **Open (next steps, measured with the monitor):** a confidence score from the decoder, to flag the bad and invented
+  lines (F15, F19); a check for near-identical rare words (names) within one file (F17); the owner's choice between
+  colloquial and standard spelling for the output; the transcript of 12:00–20:35.
+- **Rule:** read the `how:` line, not only the CER. A change can keep the CER and still lose replies or flip
+  meanings; a truth that stops early must say where.

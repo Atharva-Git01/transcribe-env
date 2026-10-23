@@ -3,6 +3,37 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.8.2 — 2026-10-23 (the owner's 20-minute call: failure monitor, scoring a half transcript)
+**Eval.** New fixture `call_240509_20min` (the owner's 20:35 Marathi phone call, private; the owner's transcript
+covers 0:00–12:00): **CER 0.232**, content CER 0.192, spk 0.986 (baseline saved with 0.8.1). The first eval said
+0.925: the untranscribed 8.5 minutes were scored as errors (E39).
+
+| Fixture | 0.8.1 → 0.8.2 | What changed |
+|---|---|---|
+| 20-min call (mr, phone) | CER 0.2316 → 0.2318 · spk 0.986 → 0.987 | wrong-speaker turns 6 → 4, merged 8 → 6 |
+| Pappa call (mr, phone) | 0.361 → 0.361 (identical) | — |
+| other fixtures | unchanged (their recipes did not change) | — |
+
+- **Failure monitor in `trx eval` (E39):** under each fixture a `how:` line — content CER (spelling conventions
+  folded away), turn outcomes (correct / misheard / merged / lost / lost backchannel / wrong speaker), negations and
+  numbers lost or added (`library/scoring/<lang>.toml`), lines < 2 s against longer ones, and how many of the worst
+  lines carry a review flag. Results get the numbers, `evals/compare/` the turn-by-turn evidence.
+  First readings: the call 1 of 17 bad lines flagged, Pappa 0 of 7; short lines 0.28 vs 0.18 (call), 0.71 vs 0.15
+  (AMI meeting); ~10 negations lost or added on the call.
+- **`scored_until_sec`** in truth.json (`make_fixture.py --scored-until`): a transcript that stops early is scored
+  only up to where it stops.
+- **Pause-aware speaker smoothing** (phone recipe v9, `switch_penalty_pause = 0.02`, `pause_min_s = 0.2`): a short
+  reply between pauses keeps its own speaker. Tried on the meeting recipe too: AMI CER 0.249 → 0.254, spk 0.887 →
+  0.876 — not adopted there.
+- Scoring is exact and fast: alignment rows in numpy, a bit-parallel distance (20-minute call 24.7 s → 1.1 s; the
+  self-test proves identical results).
+- Privacy: eval runs are private unless their fixture is open-licensed (a renamed fixture's runs were missed);
+  words kept in `library/` on purpose are not leaks. The new fixture got a neutral name (the first held a place and
+  a surname from the call).
+- Full failure check of the whole call (private report `evals/compare/failure_check_call_240509_20min.md`): the
+  unscored 12:00–20:35 shows the same pattern — long lines fluent, about a third of the listener's short replies
+  implausible, names in several forms. New catalogue entries F14–F19.
+
 ## 0.8.1 — 2026-10-23 (quality pass: denoising off, honest flags)
 **Eval (seeded; new baseline saved).** Every fixture better or equal; mean CER 0.223 → **0.196**.
 

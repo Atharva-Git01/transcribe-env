@@ -144,6 +144,19 @@ class TestSpeakerSplit(unittest.TestCase):
         self.assertEqual(" ".join(p["text"] for p in parts), seg["text"])
         self.assertEqual(split_by_turns([seg], [])[0]["text"], seg["text"])   # no diarization -> unchanged
 
+    def test_short_reply_after_a_pause_keeps_its_speaker(self):
+        # E39: a short interjection between two pauses was smoothed into the other party's turn
+        import numpy as np
+        from pipeline.stages.diarize_embed import penalties, viterbi, windows
+        speech = [(0.0, 5.0), (5.5, 6.3), (6.4, 10.0)]          # long turn, pause, 0.8 s reply, long turn
+        wins = windows(speech, 1.0, 0.25)
+        reply = np.array([5.5 <= s < 6.3 for s, _ in wins])
+        S = np.where(reply[:, None], [0.25, 0.40], [0.7, 0.2])  # the reply sounds more like speaker 1 (by 0.15)
+        self.assertEqual(viterbi(S, 0.1).tolist(), [0] * len(wins))                 # one cost everywhere: absorbed
+        pen = penalties(wins, speech, 0.1, 0.02, 0.2)
+        self.assertEqual(sorted(set(pen.tolist())), [0.02, 0.1])                     # cheap only after the pause
+        self.assertEqual(viterbi(S, pen).tolist(), reply.astype(int).tolist())
+
 
 class TestCleanupGates(unittest.TestCase):
     def test_whole_suggestion_gates(self):
@@ -293,6 +306,28 @@ class TestEvalPrivacy(unittest.TestCase):
         self.assertEqual([(f, n) for f, n, _ in privacy.rare_word_leaks()], [],
                          "a rare word of a private recording in prose or results (E29)")
 
+    def test_eval_runs_are_private_unless_their_fixture_is_open(self):
+        # E39: after a fixture was renamed, its earlier eval run no longer counted as private
+        import json
+        import tempfile
+        from pipeline import privacy
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            fx = tmp / "evals" / "fixtures" / "open_read"
+            fx.mkdir(parents=True)
+            (fx / "truth.json").write_text(json.dumps({"source": "FLEURS, CC-BY-4.0", "segments": []}))
+            for name, text in (("eval_open_read-20260101-000000", "खुला मजकूर"),
+                               ("eval_renamed_call-20260101-000000", "खासगी मजकूर")):
+                out = tmp / "evals" / "runs" / name / "out"
+                out.mkdir(parents=True)
+                (out / "transcript.json").write_text(json.dumps({"segments": [{"text": text}]}), encoding="utf-8")
+            self.assertEqual(privacy.private_texts(tmp), ["खासगी मजकूर"])
+
+    def test_library_words_are_generic(self):
+        # E39: a written "hmm" in code matched the owner's call; words the library holds on purpose are not private
+        from pipeline import privacy
+        self.assertIn("हम्म", privacy.generic_words())
+
     def test_owner_transcript_lines(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("make_fixture", HOME / "setup" / "make_fixture.py")
@@ -363,6 +398,46 @@ class TestEvalRun(unittest.TestCase):
                 res = evaluate.run_eval()
         self.assertEqual(seen, [None, None])                       # no override -> each run measures its own
         self.assertIsNone(res["overrides"]["lang"])
+
+    def test_scored_until_ignores_speech_after_the_transcript(self):
+        # E39: the owner's transcript stopped at 12:00 of a 20:35 call; the untranscribed rest counted as errors
+        import json
+        import tempfile
+        from unittest import mock
+        from pipeline import evaluate
+        segs = [{"start": 0.0, "end": 2.0, "text": "मी येतो", "speaker": "SPK1"},
+                {"start": 6.0, "end": 9.0, "text": "उद्या सकाळी परत बोलू", "speaker": "SPK2"}]
+
+        def fake_transcribe(path, forced_recipe=None, case=None, engine=None, lang=None, runs_dir=None):
+            run = runs_dir / f"{case}-1"
+            (run / "out").mkdir(parents=True)
+            (run / "report.json").write_text(json.dumps({"metrics": {"engines": ["x"], "language": "mr"}}))
+            (run / "out" / "transcript.json").write_text(json.dumps({"segments": segs}))
+            return "OK", {"run_id": run.name, "verdict": "PASS", "recipe": "r"}
+
+        rows = {}
+        for until in (None, 5.0):
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp = Path(tmp)
+                d = tmp / "fixtures" / "part"
+                d.mkdir(parents=True)
+                (d / "audio.wav").write_bytes(b"")
+                truth = {"schema": "trx.truth/1", "id": "part", "audio": "audio.wav", "language": "mr",
+                         "reference_text": "मी येतो", "segments": [{"speaker": "A", "text": "मी येतो"}]}
+                if until:
+                    truth["scored_until_sec"] = until
+                (d / "truth.json").write_text(json.dumps(truth))
+                with mock.patch.multiple(evaluate, TRX_HOME=tmp, FIXTURES=tmp / "fixtures", EVAL_RUNS=tmp / "runs",
+                                         RESULTS=tmp / "results", COMPARE=tmp / "compare",
+                                         BASELINE=tmp / "baseline.json"), \
+                        mock.patch("pipeline.run.transcribe", fake_transcribe):
+                    rows[until] = evaluate.run_eval()["rows"][0]
+        self.assertGreater(rows[None]["cer"], 1.0)                  # the later line counted as inserted errors
+        self.assertEqual(rows[5.0]["cer"], 0.0)                     # only lines starting before 5 s are scored
+        self.assertEqual(rows[5.0]["scored_until_sec"], 5.0)
+        mon = rows[5.0]["monitor"]                                   # the failure monitor rides along (E39)
+        self.assertEqual((mon["turn_outcomes"], mon["negation_errors"], mon["bad_lines"]), ({"correct": 1}, 0, 0))
+        self.assertEqual(rows[5.0]["turn_rows"][0]["what_happened"], "correct")
 
 
 class TestRepetitionFlags(unittest.TestCase):

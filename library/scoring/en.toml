@@ -1,0 +1,8 @@
+# English word lists for the eval's failure monitor (pipeline/metrics.py, E39). Generic language.
+
+backchannels = ["yeah", "yes", "yep", "ok", "okay", "mm", "hmm", "mhm", "right", "sure", "uh", "um"]
+negations = ["not", "no", "never", "nothing", "nobody", "none"]
+negation_stems = []
+joined = []
+not_negation = []
+number_endings = []

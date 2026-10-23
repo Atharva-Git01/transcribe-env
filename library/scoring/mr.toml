@@ -1,0 +1,17 @@
+# Marathi word lists for the eval's failure monitor (pipeline/metrics.py, E39). Generic language, never words of a
+# case. Words are compared after the scorer's "loose" fold (short/long i and u merged), so either spelling works.
+
+# A reference turn made only of these (at most three words) is an acknowledgement: losing it is "lost_backchannel".
+backchannels = ["हं", "हां", "हाँ", "हम्म", "हो", "होय", "हा", "बरं", "बर", "ओके", "हॅलो", "अं", "अच्छा", "ठीक", "जी"]
+
+# Negations: whole words, and stems that start every negative verb form (नाहीये, नाहीत, नव्हता, नव्हतं, नसेल,
+# नसतं and their colloquial spellings).
+negations = ["नाह", "नाय", "नायी", "नको", "नकोस", "नकोत", "नका"]
+negation_stems = ["नाही", "नव्ह", "नस"]
+# Word pairs joined before matching, and words that look negative but are not: "नाही तर" = "otherwise".
+joined = [["नाही", "तर"]]
+not_negation = ["नाहीतर"]
+
+# A number word with a case ending is the same number ("हजार" + "च्या").
+number_endings = ["च्या", "चा", "ची", "चे", "ला", "ना", "ने", "नी", "त", "ात", "पर्यंत", "मध्ये", "वर", "शी", "च",
+                  "ांच्या", "ांचा", "ांची", "ांचे", "ांना", "ांनी"]

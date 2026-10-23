@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import time
 
-from .common import TRX_HOME, TrxError, env_version, read_json, utc_now, write_json
-from .metrics import cer, cer_level, self_test, speaker_accuracy, turn_alignment, wer
+from .common import TRX_HOME, TrxError, env_version, load_config, read_json, utc_now, write_json
+from .metrics import (TURN_KINDS, cer, cer_level, line_scores, meaning_errors, self_test, speaker_accuracy,
+                      turn_alignment, turn_outcomes, wer)
 from .stages import IMPLEMENTED
 
 FIXTURES = TRX_HOME / "evals" / "fixtures"
@@ -36,8 +37,12 @@ def list_fixtures() -> list[dict]:
                 problems.append(f"audio file '{truth.get('audio')}' missing")
             if not truth.get("reference_text", "").strip():
                 problems.append("empty reference_text")
+            until = truth.get("scored_until_sec")
+            if until is not None and not (isinstance(until, (int, float)) and until > 0):
+                problems.append("scored_until_sec must be a positive number of seconds")
             row.update(ok=not problems, truth=truth, detail="; ".join(problems) or
-                       f"{truth.get('language')} · {len(truth['reference_text'])} chars · {truth.get('notes', '')[:60]}")
+                       f"{truth.get('language')} · {len(truth['reference_text'])} chars · "
+                       f"{f'scored 0-{until:.0f} s · ' if until else ''}{truth.get('notes', '')[:60]}")
         except Exception as e:  # noqa: BLE001
             row["detail"] = f"truth.json unreadable: {e}"
         rows.append(row)
@@ -61,6 +66,44 @@ def turns_without_text(turns: list[dict]) -> list[dict]:
                  missing=t["missing"] if "missing" in t else not t.get("hyp")) for t in turns]
 
 
+def failure_monitor(truth: dict, hyp: str, hyp_segs: list[dict], lang: str, turns: list[dict]) -> dict:
+    """HOW the transcript went wrong (E39), numbers only: the CER left once spelling conventions are folded away,
+    what happened to each turn (also written into the turn rows), negations and numbers lost or added, short lines
+    (< 2 s) against long ones, and how many of the bad lines (> 40 % wrong) carry a review flag."""
+    ref = truth["reference_text"]
+    mon = {"cer_content": round(cer_level(ref, hyp, lang, "content"), 4)}
+    if truth.get("segments") and hyp_segs:
+        kinds = turn_outcomes(truth["segments"], hyp_segs, lang)
+        for t, k in zip(turns, kinds):
+            t["what_happened"] = k
+        mon["turn_outcomes"] = {k: kinds.count(k) for k in TURN_KINDS if k in kinds}
+    mon.update(meaning_errors(ref, hyp, lang))
+    lines = list(zip(line_scores(ref, hyp_segs, lang), hyp_segs)) if hyp_segs else []
+
+    def cer_of(sel):
+        n = sum(sc["ref"] for sc, _ in sel)
+        return round(sum(sc["err"] for sc, _ in sel) / n, 4) if n else None
+    mon["short_line_cer"] = cer_of([p for p in lines if p[1].get("end", 0) - p[1].get("start", 0) < 2.0])
+    mon["long_line_cer"] = cer_of([p for p in lines if p[1].get("end", 0) - p[1].get("start", 0) >= 2.0])
+    info = set(load_config("thresholds")["gate"].get("info_flags", []))
+    bad = [s for sc, s in lines if sc["ref"] >= 8 and sc["err"] > 0.4 * sc["ref"]]
+    mon["bad_lines"] = len(bad)
+    mon["bad_lines_flagged"] = sum(1 for s in bad if any(f.split(":")[0].split(" (")[0] not in info
+                                                         for f in s.get("flags", [])))
+    return mon
+
+
+def monitor_line(m: dict) -> str:
+    """One line for the console and the comparison files."""
+    t = m.get("turn_outcomes", {})
+    turns = (f"turns: {t.get('correct', 0)} correct, {t.get('misheard', 0)} misheard, {t.get('merged', 0)} merged, "
+             f"{t.get('lost', 0)} lost (+{t.get('lost_backchannel', 0)} backchannels), "
+             f"{t.get('wrong_speaker', 0) + t.get('merged_other', 0)} wrong speaker | ") if t else ""
+    return (f"content CER {m['cer_content']} | {turns}negations {m['negation_errors']} wrong of {m['negations']} | "
+            f"numbers {m['number_errors']} wrong of {m['numbers']} | lines < 2 s CER {m['short_line_cer']}, "
+            f"longer {m['long_line_cer']} | bad lines flagged {m['bad_lines_flagged']}/{m['bad_lines']}")
+
+
 def _write_comparison(path, result: dict, text: bool) -> None:
     """Per-turn comparison for every fixture of this eval. text=True (evals/compare/, this PC only) shows the truth and
     the output side by side; text=False (evals/results/, pushed) keeps only speaker letters and per-turn CER."""
@@ -72,21 +115,27 @@ def _write_comparison(path, result: dict, text: bool) -> None:
                      f"{r['cer_std'] if r['cer_std'] is not None else '-'} | {r['wer']} | "
                      f"{r['speaker_acc'] if r['speaker_acc'] is not None else '-'} | {r['missing_turns']}/{r['turns']} | "
                      f"{r['hindi_forms'] if r['hindi_forms'] is not None else '-'} | {r['rtf']} | {r['verdict']} |")
+    if any(r.get("monitor") for r in result["rows"]):
+        lines += ["", "## Failure monitor (how it went wrong, E39)", ""]
+        lines += [f"- **{r['fixture']}**: {monitor_line(r['monitor'])}" for r in result["rows"] if r.get("monitor")]
     for r in result["rows"]:
         if not r.get("turn_rows"):
             continue
         if text:
-            lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | truth | output | output speakers | turn CER |",
-                      "|---|---|---|---|---|---|"]
+            lines += ["", f"## {r['fixture']}", "",
+                      "| # | truth speaker | truth | output | output speakers | turn CER | what happened |",
+                      "|---|---|---|---|---|---|---|"]
             for t in r["turn_rows"]:
                 lines.append(f"| {t['turn']} | {t['ref_speaker']} | {t['ref']} | {t['hyp'] or '— missing —'} | "
-                             f"{', '.join(t['hyp_speakers']) or '-'} | {t['cer']} |")
+                             f"{', '.join(t['hyp_speakers']) or '-'} | {t['cer']} | {t.get('what_happened', '-')} |")
         else:
-            lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | output speakers | turn CER |", "|---|---|---|---|"]
+            lines += ["", f"## {r['fixture']}", "", "| # | truth speaker | output speakers | turn CER | what happened |",
+                      "|---|---|---|---|---|"]
             for t in r["turn_rows"]:
                 missing = t["missing"] if "missing" in t else not t.get("hyp")
                 lines.append(f"| {t['turn']} | {t['ref_speaker']} | "
-                             f"{'— missing —' if missing else ', '.join(t['hyp_speakers']) or '-'} | {t['cer']} |")
+                             f"{'— missing —' if missing else ', '.join(t['hyp_speakers']) or '-'} | {t['cer']} | "
+                             f"{t.get('what_happened', '-')} |")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -115,6 +164,10 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
         report = read_json(EVAL_RUNS / info["run_id"] / "report.json")
         tj = EVAL_RUNS / info["run_id"] / "out" / "transcript.json"
         hyp_segs = read_json(tj)["segments"] if tj.is_file() else []
+        until = truth.get("scored_until_sec")
+        if until:   # the truth covers only the start of the recording (E39): score the lines that start before it
+            hyp_segs = [s for s in hyp_segs if s["start"] < until]
+            hyp = " ".join(s["text"] for s in hyp_segs)
         spk = speaker_accuracy(truth.get("segments", []), hyp_segs) if hyp_segs else None
         # the truth's language, for scoring only: `lang` stays the operator's override for every fixture (E30)
         t_lang = truth.get("language", "")
@@ -133,9 +186,10 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             "cer_norm": round(cer_level(truth["reference_text"], hyp, t_lang, "norm"), 4),
             "cer_loose": round(cer_level(truth["reference_text"], hyp, t_lang, "loose"), 4),
             "cer_std": round(cer_level(std_ref, hyp, t_lang, "norm"), 4) if std_ref else None,
-            "missing_turns": sum(1 for t in turns if not t["hyp"]), "turns": len(turns),
+            "missing_turns": sum(1 for t in turns if not t["hyp"]), "turns": len(turns), "scored_until_sec": until,
             "hindi_forms": hindi_forms if t_lang == "mr" else None,
             "rtf": round((time.time() - t0) / max(1e-6, float(truth.get("duration_sec") or 1)), 2),
+            "monitor": failure_monitor(truth, hyp, hyp_segs, t_lang, turns),
             "turn_rows": turns,
         })
     result = {"schema": "trx.eval/1", "env_version": env_version(), "utc": utc_now(),
