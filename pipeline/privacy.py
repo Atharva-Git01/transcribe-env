@@ -91,8 +91,12 @@ def rare_word_leaks(home: Path = TRX_HOME) -> list[tuple[str, int, list[str]]]:
     return found
 
 
+MIN_HITS = 2       # one common greeting phrase also starts many real calls; a copied line has several (E36)
+
+
 def leaks(home: Path = TRX_HOME) -> list[tuple[str, int, int]]:
-    """[(file, line, number of private 3-word sequences on it)] for every pushable text file."""
+    """[(file, line, number of private 3-word sequences on it)] for every pushable text file; a line counts when it
+    holds at least MIN_HITS of them. Short fragments are covered by rare_word_leaks()."""
     grams = phrases(private_texts(home))
     if not grams:
         return []
@@ -108,6 +112,6 @@ def leaks(home: Path = TRX_HOME) -> list[tuple[str, int, int]]:
         for i, line in enumerate(body.splitlines(), 1):
             w = WORD.findall(line)
             n = sum(1 for j in range(len(w) - 2) if " ".join(w[j:j + 3]) in grams)
-            if n:
+            if n >= MIN_HITS:
                 found.append((rel, i, n))
     return found

@@ -353,3 +353,13 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Fix:** after the speakers are assigned, polish copies each line's speaker into its review item. Only the review
   list was affected; transcripts and verdicts were right. Runs made before the fix keep their lists (runs are evidence).
 - **Rule:** anything built from a line must be built, or refreshed, after the line is complete.
+
+## E36 — The privacy test failed on common phone phrases (and a commit went out anyway)
+- **Seen (2026-10-23):** with the owner's 15 calls on this PC, `trx test` reported three lines in `prompts/` as words of
+  private recordings: a greeting and a filler phrase in the example prompts, written months before these calls, that
+  also start many real calls. The maintainer's command chained `trx test | grep … && git commit`, so the commit and push
+  went ahead on grep's success although the test had failed. Nothing private was pushed.
+- **Fix:** a line counts only when it holds at least two private word triples (`MIN_HITS`); a copied private line
+  holds several, and short fragments are still caught by the rare-word check.
+- **Rule:** gate commits on the test's own exit status, never on a pipe's; a leak check must ignore what every
+  conversation says.
