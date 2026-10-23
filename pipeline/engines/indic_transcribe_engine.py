@@ -16,6 +16,7 @@ from __future__ import annotations
 import gc
 import importlib
 import importlib.machinery
+import os
 import sys
 import types
 
@@ -47,6 +48,20 @@ def _torchaudio_stand_in() -> None:
     sys.modules["torchaudio"] = ta
 
 
+def _build(mod, path: str, dev: str, dtype):
+    """IndicTranscribe as its own from_pretrained builds it. On the GPU the weights go straight from the file to the
+    GPU (accelerate's device_map): 14 s instead of 77 s, and ~3 GB of RAM instead of ~7 GB, because Windows did not
+    give back the CPU copy the plain load makes first (E33)."""
+    if dev == "cuda":
+        try:
+            model = mod.IndicCanaryForConditionalGeneration.from_pretrained(path, dtype=dtype, device_map="cuda").eval()
+        except ValueError:                           # accelerate not installed (CPU-only lock): the plain way
+            return mod.IndicTranscribe.from_pretrained(path, device=dev, dtype=dtype)
+        return mod.IndicTranscribe(model, mod.IndicCanaryFeatureExtractor.from_pretrained(path, device=dev),
+                                   mod.IndicCanaryTokenizer.from_pretrained(path), dev)
+    return mod.IndicTranscribe.from_pretrained(path, device=dev, dtype=dtype)
+
+
 class IndicTranscribeEngine:
     family = "indic_transcribe"
 
@@ -57,9 +72,16 @@ class IndicTranscribeEngine:
         self.asr = None
         self.max_s = 30.0
 
+    def uses_gpu(self, device: str, params: dict) -> bool:
+        """Where load() will put the model: the runtime device, this engine's setting, a CUDA build of PyTorch."""
+        import torch
+        return device != "cpu" and params.get("device", "auto") in ("auto", "cuda") and torch.cuda.is_available()
+
     def load(self, device: str, params: dict) -> dict:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")   # deterministic cuBLAS (E18); before CUDA starts
         import torch
         torch.manual_seed(0)
+        torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark = True, False
         torch.set_num_threads(int(params.get("threads", 8)))
         _torchaudio_stand_in()
         sys.path.insert(0, str(self.path))           # the repo's flat imports (lid, modeling_indic_canary, …)
@@ -67,13 +89,27 @@ class IndicTranscribeEngine:
             mod = importlib.import_module("indic_transcribe")
         finally:
             sys.path.remove(str(self.path))
-        want = params.get("device", "auto")
-        dev = "cuda" if want in ("auto", "cuda") and torch.cuda.is_available() else "cpu"
+        # GPU first (owner): the runtime device decides ([runtime] device = "cpu" forces the CPU), then this
+        # engine's own setting; bf16 on the GPU (~2.4 GB of VRAM), float32 on the CPU
+        dev = "cuda" if self.uses_gpu(device, params) else "cpu"
         dtype = torch.bfloat16 if dev == "cuda" and params.get("dtype", "bfloat16") == "bfloat16" else torch.float32
-        self.asr = mod.IndicTranscribe.from_pretrained(str(self.path), device=dev, dtype=dtype)
+        fallback = None
+        try:
+            self.asr = _build(mod, str(self.path), dev, dtype)
+        except RuntimeError as e:                    # torch.cuda.OutOfMemoryError is a RuntimeError
+            if dev != "cuda":
+                raise
+            self.asr = None
+            gc.collect()
+            torch.cuda.empty_cache()
+            dev, dtype, fallback = "cpu", torch.float32, f"cuda load failed: {e}"[:300]
+            self.asr = _build(mod, str(self.path), dev, dtype)
         self.max_s = float(params.get("piece_max_s", 30.0))
-        return {"engine": self.id, "device": dev, "compute_type": str(dtype).replace("torch.", ""),
+        info = {"engine": self.id, "device": dev, "compute_type": str(dtype).replace("torch.", ""),
                 "model_sha256": source_info(self.id).get("model_sha256")}
+        if fallback:
+            info["fallback_reason"] = fallback
+        return info
 
     def detect_language(self, audio: np.ndarray, candidates: list[str]) -> dict:
         # allowed_langs is a hard filter (model docs): speech in another language goes to the nearest candidate
@@ -122,3 +158,5 @@ class IndicTranscribeEngine:
     def unload(self) -> None:
         self.asr = None
         gc.collect()
+        if "torch" in sys.modules and sys.modules["torch"].cuda.is_available():
+            sys.modules["torch"].cuda.empty_cache()     # one GPU model at a time (E06): hand the VRAM back

@@ -328,7 +328,7 @@ class TestMemoryCheck(unittest.TestCase):
     def test_every_family_need_is_a_known_engine(self):
         from pipeline.stages.recognise import FAMILY_TABLE
         need = load_config("defaults")["runtime"].get("memory_gb", {})
-        self.assertTrue(set(need) <= set(FAMILY_TABLE))
+        self.assertTrue({k.removesuffix("_gpu") for k in need} <= set(FAMILY_TABLE))
 
 
 class TestEvalRun(unittest.TestCase):

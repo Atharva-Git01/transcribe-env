@@ -26,6 +26,13 @@ except ImportError:
     AVAILABLE = False
 
 
+def device() -> str:
+    """GPU first (owner); the CPU only without a CUDA build of PyTorch or with [runtime] device = "cpu"."""
+    import torch
+    from .. import gpu
+    return "cuda" if gpu.choose_device() == "cuda" and torch.cuda.is_available() else "cpu"
+
+
 def _separate(x: np.ndarray, sr: int, params: dict) -> tuple[np.ndarray, np.ndarray]:
     """mono float32 at sr -> (vocals, background) mono at sr."""
     import random
@@ -35,18 +42,24 @@ def _separate(x: np.ndarray, sr: int, params: dict) -> tuple[np.ndarray, np.ndar
     from demucs.pretrained import get_model
     torch.manual_seed(0)
     random.seed(0)          # Demucs draws its time shift from Python's random, not torch (E32): same input, same output
+    torch.backends.cudnn.deterministic, torch.backends.cudnn.benchmark = True, False
+    dev = device()
     model = get_model(params.get("model", "htdemucs"), repo=MODEL_DIR)
     model.eval()
     wav = torch.from_numpy(np.stack([x, x])).float()
     ref = wav.mean(0)
     m, s = ref.mean(), ref.std() + 1e-8
     with torch.no_grad():
-        out = apply_model(model, ((wav - m) / s)[None], device="cpu", shifts=int(params.get("shifts", 1)),
+        out = apply_model(model, ((wav - m) / s)[None], device=dev, shifts=int(params.get("shifts", 1)),
                           split=True, overlap=float(params.get("overlap", 0.25)), progress=False)[0]
-    out = out * s + m
-    vi = model.sources.index("vocals")
+    sources = list(model.sources)
+    del model
+    if dev == "cuda":
+        torch.cuda.empty_cache()                    # one GPU model at a time (E06)
+    out = out.cpu() * s + m
+    vi = sources.index("vocals")
     vocals = out[vi].mean(0).numpy()
-    background = sum(out[i] for i in range(len(model.sources)) if i != vi).mean(0).numpy()
+    background = sum(out[i] for i in range(len(sources)) if i != vi).mean(0).numpy()
     return vocals.astype(np.float32), background.astype(np.float32)
 
 
@@ -93,7 +106,7 @@ def run(ctx: Ctx, params: dict) -> None:
         ctx.metrics["separation"] = decision
         ctx.log.add("separate", f"track {tr.label}: {decision}",
                     "Music/TV behind the voice is removed with Demucs (vocals stem) only when it is really there.",
-                    model=params.get("model", "htdemucs"), background_vs_speech_db=round(rel, 1))
+                    model=params.get("model", "htdemucs"), background_vs_speech_db=round(rel, 1), device=device())
 
 
 def _derive16(ctx: Ctx, tr) -> None:

@@ -35,12 +35,12 @@ Ground truth must be human-verified. Best source: transcripts the owner corrects
 - No other fixture may get worse by more than **0.01 CER absolute** (noise margin; revisit once there are ≥ 10 fixtures).
 
 ## Fixtures now (all on this PC only)
-| id | language | length | notes | 0.7.0 baseline (Indic-Transcribe) |
+| id | language | length | notes | 0.7.1 baseline (Indic-Transcribe on the GPU) |
 |---|---|---|---|---|
-| pappa_260603_211622 | mr | 56.6 s | hard real phone call (private); 2 speakers, 26 turns | CER 0.379 · spk 0.975 |
-| fleurs_mr_test10 | mr | 127.7 s | FLEURS test (CC-BY-4.0), 10 read sentences | CER 0.048 |
+| pappa_260603_211622 | mr | 56.6 s | hard real phone call (private); 2 speakers, 26 turns | CER 0.374 · spk 0.975 |
+| fleurs_mr_test10 | mr | 127.7 s | FLEURS test (CC-BY-4.0), 10 read sentences | CER 0.047 |
 | fleurs_hi_test10 | hi | 122.6 s | FLEURS test (CC-BY-4.0), 10 read sentences | CER 0.021 |
-| fleurs_mr_test10_music5db | mr | 127.7 s | fleurs_mr_test10 + public-domain music 5 dB below the speech | CER 0.383 |
-| ami_es2004a_450s | en | 180 s | AMI meeting ES2004a, 450–630 s (CC-BY-4.0); 4 speakers, 57 turns | CER 0.284 · spk 0.890 |
+| fleurs_mr_test10_music5db | mr | 127.7 s | fleurs_mr_test10 + public-domain music 5 dB below the speech | CER 0.388 |
+| ami_es2004a_450s | en | 180 s | AMI meeting ES2004a, 450–630 s (CC-BY-4.0); 4 speakers, 57 turns | CER 0.284 · spk 0.916 |
 
 Wanted: 5–10 short labelled real recordings from the owner (`setup/make_fixture.py`).

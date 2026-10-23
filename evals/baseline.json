@@ -24,39 +24,39 @@
       "utc": "2026-10-22T13:45:21Z"
     },
     "ami_es2004a_450s|meeting_multi_speaker|indic_transcribe_core|en": {
-      "cer": 0.2844,
-      "wer": 0.3367,
-      "speaker_acc": 0.8899,
+      "cer": 0.2838,
+      "wer": 0.3347,
+      "speaker_acc": 0.9158,
       "env_version": "0.7.0",
-      "utc": "2026-10-23T05:54:11Z"
+      "utc": "2026-10-23T09:41:22Z"
     },
     "fleurs_hi_test10|meeting_multi_speaker|indic_transcribe_core|hi": {
       "cer": 0.0211,
       "wer": 0.0599,
       "speaker_acc": null,
       "env_version": "0.7.0",
-      "utc": "2026-10-23T06:41:02Z"
+      "utc": "2026-10-23T09:45:36Z"
     },
     "fleurs_mr_test10|meeting_multi_speaker|indic_transcribe_core|mr": {
-      "cer": 0.0481,
-      "wer": 0.1319,
+      "cer": 0.0471,
+      "wer": 0.1264,
       "speaker_acc": null,
       "env_version": "0.7.0",
-      "utc": "2026-10-23T06:46:06Z"
+      "utc": "2026-10-23T09:49:54Z"
     },
     "fleurs_mr_test10_music5db|noisy_field_audio|indic_transcribe_core|mr": {
-      "cer": 0.3827,
-      "wer": 0.467,
+      "cer": 0.3876,
+      "wer": 0.478,
       "speaker_acc": null,
       "env_version": "0.7.0",
-      "utc": "2026-10-23T07:31:06Z"
+      "utc": "2026-10-23T09:53:27Z"
     },
     "pappa_260603_211622|phone_call_mono|indic_transcribe_core|mr": {
-      "cer": 0.3789,
-      "wer": 0.7188,
+      "cer": 0.3744,
+      "wer": 0.7109,
       "speaker_acc": 0.9752,
       "env_version": "0.7.0",
-      "utc": "2026-10-23T06:55:51Z"
+      "utc": "2026-10-23T09:56:02Z"
     }
   },
   "references": {

@@ -3,6 +3,37 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.7.1 — 2026-10-23 (GPU first; disk space)
+**Eval (seeded; new baseline saved).** Same configuration as 0.7.0, with Indic-Transcribe and Demucs on the GPU:
+
+| Fixture | CER 0.7.0 (CPU) → 0.7.1 (GPU) | Speakers right | Real-time factor |
+|---|---|---|---|
+| Pappa call (mr, phone) | 0.379 → **0.374** | 0.975 → 0.975 | 3.06 → **2.54** |
+| FLEURS mr | 0.048 → **0.047** | – | 2.30 → **1.93** |
+| FLEURS hi | 0.021 → 0.021 | – | 2.34 → **1.99** |
+| FLEURS mr + music | 0.383 → 0.388 | – | 3.57 → **1.58** |
+| AMI meeting (en) | 0.284 → 0.284 | 0.890 → **0.916** | 2.39 → **1.95** |
+
+No fixture got worse beyond the noise margin. The repeated Pappa run gives the same text (deterministic on the GPU).
+The baseline was saved with this code before `VERSION` was raised, so its entries still read 0.7.0.
+
+- **GPU first (owner's rule):**
+  - CUDA 12.6 build of PyTorch (hash-locked `setup/requirements-ml.lock`; the CPU build is kept as
+    `requirements-ml-cpu.lock`).
+  - Indic-Transcribe runs in bf16 (2.5 GB of VRAM), and so does Demucs. cuDNN and cuBLAS are set to deterministic
+    (E18).
+  - Out of memory on the GPU falls back to the CPU, logged.
+- **Load straight to the GPU (E33):** `accelerate` + `psutil` (650 KB). A run holds ~2.7 GB of RAM instead of ~7 GB,
+  and the model loads in 14–25 s instead of 77 s. The memory check asks for 3 GB on the GPU (5.5 GB on the CPU).
+- **Disk (owner's decision):** IndicConformer, Whisper large-v3 and medium and Gemma 3 moved to the D: USB stick
+  (sha256-verified, linked by junctions); setup downloads moved too; pip/npm/conda/Composer caches and old crash
+  dumps cleaned. C: 6.5 → 18.4 GB free. `trx doctor` requires Gemma only when the default engines need it, and a
+  missing Gemma skips the cleanup instead of failing a `--fast` run.
+- **`--fast` is now slower than the default:** Pappa RTF 3.74 against 2.54 (Gemma cleanup runs on Whisper output),
+  CER 0.771 against 0.374 (QUESTIONS.md 23).
+- Still on the CPU, because no GPU build is installed or they are small: DeepFilterNet, Silero VAD, the speaker
+  embeddings (sherpa-onnx), IndicConformer (onnxruntime).
+
 ## 0.7.0 — 2026-10-23 (Indic engines; PLAN_v0.7)
 **Eval (seeded; same pipeline for every engine; new baseline saved).** CER (normalised CER in brackets).
 
@@ -53,10 +84,6 @@ Eval and privacy (E29)
 - **Memory check (E31):** a run stops with exit 51 `MEMORY_LOW` (and a next step) instead of crashing when the
   1.2B model cannot fit in memory (`[runtime.memory_gb]`). `--save-baseline` never saves a run that stopped.
 - **Fixed (E32):** Demucs separated the same audio differently on every run (an unseeded random time shift).
-- **Disk (owner's decision):** IndicConformer, Whisper large-v3 and medium and Gemma 3 moved to the D: USB stick
-  (sha256-verified, linked by junctions); setup downloads moved too; pip/npm/conda/Composer caches and old crash
-  dumps cleaned. C: 6.5 → 18.4 GB free. `trx doctor` requires Gemma only when the default engines need it, and a
-  missing Gemma skips the cleanup instead of failing a `--fast` run.
 - **`--fast`** (Whisper turbo; Gemma cleanup still runs on its output) on the phone call: CER 0.771, speakers right
   0.717, 8/26 turns missing, RTF 2.7 against 3.1 for the default. It no longer pays off (QUESTIONS.md 23).
 - **New fixtures:** FLEURS mr + music (`make_mix_fixture.py`) and AMI ES2004a, 3 minutes with 4 people

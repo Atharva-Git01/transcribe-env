@@ -241,7 +241,9 @@ def run(ctx: Ctx, params: dict) -> None:
         if held["eng"] is None:
             e = make(eng_id)
             rt = load_config("defaults")["runtime"]
-            need = float(rt.get("memory_gb", {}).get(e.family, 0.0))
+            mem = rt.get("memory_gb", {})
+            on_gpu = getattr(e, "uses_gpu", lambda *_: False)(gpu.choose_device(), fw)
+            need = float(mem.get(f"{e.family}_gpu", mem.get(e.family, 0.0)) if on_gpu else mem.get(e.family, 0.0))
             have = resources.headroom_gb()
             if not resources.enough(need, have):
                 raise TrxError("MEMORY_LOW", f"{have:.1f} GB of memory free (RAM + page file); {eng_id} needs about "

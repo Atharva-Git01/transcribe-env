@@ -66,9 +66,10 @@ Plans: `PLAN_v0.7.md`; overall: `forensic media suit/doc/TRANSCRIPTION_ENVIRONME
 
 ## Hardware notes (this machine)
 - RTX 3050 Laptop 4 GB: one model on the GPU at a time (load → run → unload). `config/defaults.toml [runtime] device`.
-  The GPU runs Whisper (language ID, `--fast`) and Gemma; the Indic engines run on the CPU (CPU build of PyTorch).
-  A 1-minute phone call takes about 3 minutes. Indic-Transcribe needs about 5.5 GB of free memory (15.6 GB of RAM
-  here): with a big browser session open, a run may stop with `MEMORY_LOW` (E31).
+  GPU first (owner's rule): Indic-Transcribe (bf16, ~2.5 GB of VRAM), Demucs, Whisper (language ID, `--fast`) and
+  Gemma run on the GPU, one at a time. Small helpers stay on the CPU: DeepFilterNet, Silero VAD, speaker embeddings.
+  A 1-minute phone call takes about 2.5 minutes. A run needs about 3 GB of free memory (15.6 GB of RAM here);
+  below that it stops with `MEMORY_LOW` (E31, E33).
 - The models every run needs are on C: (`toolchain/models/`). The fallbacks (IndicConformer, Whisper large-v3 and
   medium) and Gemma 3 live on the D: USB stick, linked by directory junctions (`D:\transcribe-env-models\README.txt`).
   With the stick unplugged, normal runs are unaffected, `trx doctor` stays READY and `--fast` runs without the Gemma

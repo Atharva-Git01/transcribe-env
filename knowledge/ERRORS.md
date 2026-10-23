@@ -307,3 +307,15 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   separate bit-identically, and two eval runs of the music fixture give the same CER.
 - **Rule:** seed every random generator a library uses (Python, NumPy, torch), not only one, and prove it by running
   the same input twice (E18).
+
+## E33 — On the GPU the model still held ~7 GB of RAM and took 77 s to load
+- **Seen (2026-10-23):** with the CUDA build of PyTorch, Indic-Transcribe ran on the GPU (bf16, 2.45 GB of VRAM), but
+  the process still held ~7.1 GB of committed memory, and loading took 77 s. Measured step by step: PyTorch and the
+  CUDA context 1.4 GB; the model's own `from_pretrained` first builds all weights on the CPU (+3.2 GB); moving them to
+  the GPU added another 2.5 GB of host memory. None of it was given back until the process ended.
+- **Tried:** `disable_mmap=True` reads the whole 4.9 GB file into RAM first, which raised `MemoryError`.
+- **Fix:** with `accelerate` (+ `psutil`; 650 KB, hash-locked), transformers loads the weights straight from the file
+  onto the GPU (`device_map="cuda"`, `_build()` in `pipeline/engines/indic_transcribe_engine.py`). The process holds
+  ~2.7 GB, loading takes 14–25 s, and the text is identical. `[runtime.memory_gb] indic_transcribe_gpu = 3.0`.
+- **Rule:** on Windows, measure the free commit (RAM + page file) at every step, not just the VRAM; a load path can
+  leave a full CPU copy behind.

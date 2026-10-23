@@ -13,8 +13,9 @@ python setup/setup.py write-sources                record SOURCE.json next to ev
 - `sources.toml`: every downloadable item (URL or Hugging Face repo at a pinned revision, sha256, destination).
   Gated Hugging Face models (IndicConformer, Indic-Transcribe) use the login the owner stored with
   `toolchain\python\.venv\Scripts\hf.exe auth login`. Claude never types or reads tokens.
-- `requirements.lock`, `requirements-nodeps.lock`, `requirements-ml.lock` (PyTorch CPU, transformers,
-  sentencepiece, Demucs, …): pip `--require-hashes`.
+- `requirements.lock`, `requirements-nodeps.lock`, `requirements-ml.lock` (CUDA 12.6 PyTorch, accelerate,
+  transformers, sentencepiece, Demucs, …): pip `--require-hashes`. A PC without an NVIDIA GPU uses
+  `requirements-ml-cpu.lock` instead (CPU build of PyTorch).
 - `build_lm.py`: Marathi/Hindi word language models from IndicCorp v2 (CC-0).
 - Fixture builders (the fixtures stay on this PC; `evals/fixtures/*/` is git-ignored):
   - `make_fleurs_fixture.py`: 10 FLEURS test sentences (CC-BY-4.0) joined into one file

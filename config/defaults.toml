@@ -8,10 +8,11 @@ seed = 1234                       # fixed seed wherever a stage is stochastic
 device = "auto"                   # "auto" (cuda if usable, else cpu) | "cpu". One GPU model at a time: load -> run -> unload (E06)
 
 [runtime.memory_gb]
-# Free memory (RAM + page file) an engine family needs to load and run on the CPU; below it the run stops with
-# MEMORY_LOW instead of crashing (E31). A whole Indic-Transcribe run peaks at ~7.0 GB; loading it adds ~5 GB.
-indic_transcribe = 5.5
-indic_conformer = 3.0
+# Free memory (RAM + page file) an engine family needs to load and run; below it the run stops with MEMORY_LOW
+# instead of crashing (E31). "<family>_gpu" applies when the engine runs on the GPU (E33).
+indic_transcribe = 5.5            # CPU, float32: a whole run peaks at ~7.0 GB, loading adds ~5 GB
+indic_transcribe_gpu = 3.0        # GPU, bf16 loaded straight to the GPU: the process holds ~2.7 GB
+indic_conformer = 3.0             # CPU (onnxruntime)
 
 [fallback_ladder]                 # E04: speech heard but no text -> relax silence checks -> VAD off -> FAIL
 min_speech_sec = 1.0

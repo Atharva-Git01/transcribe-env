@@ -62,6 +62,8 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 4. `trx eval --engine <id>`: it becomes a default for a language only if it beats the current one there.
 5. Re-measure the post-processing with it: Gemma cleanup (`[llm_cleanup] engines`, E26) and Demucs (E27) were
    decided per engine.
+6. GPU first (owner's rule): use the GPU build when one exists, keep the CPU as the fallback, and measure the RAM a
+   run holds (free commit, E33) as well as the VRAM; set `[runtime.memory_gb]` from that measurement.
 
 ## Never
 - Never change anything during a run or inside `runs/`.
