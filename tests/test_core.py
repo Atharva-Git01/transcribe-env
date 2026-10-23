@@ -304,6 +304,17 @@ class TestEvalPrivacy(unittest.TestCase):
         self.assertEqual(bad, [5])
 
 
+class TestCleanupDecision(unittest.TestCase):
+    def test_engine_filter_and_missing_model(self):
+        from pipeline.stages.polish import cleanup_decision
+        llm = {"enabled": True, "engines": ["faster_whisper"]}
+        never = lambda: self.fail("Gemma must not be probed when the cleanup does not apply")  # noqa: E731
+        self.assertEqual(cleanup_decision(llm, ["indic_transcribe_core"], never), "engine")       # E26
+        self.assertEqual(cleanup_decision(llm, ["faster_whisper_large_v3_turbo"], lambda: True), "run")
+        self.assertEqual(cleanup_decision(llm, ["faster_whisper_large_v3_turbo"], lambda: False), "missing")  # USB out
+        self.assertEqual(cleanup_decision(dict(llm, enabled=False), ["faster_whisper_large_v3"], never), "off")
+
+
 class TestMemoryCheck(unittest.TestCase):
     def test_enough(self):
         from pipeline import resources

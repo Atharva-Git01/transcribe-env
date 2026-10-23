@@ -104,6 +104,17 @@ def split_by_turns(segments: list[dict], turns: list[dict]) -> list[dict]:
     return out
 
 
+def cleanup_decision(llm: dict, primary: list[str], gemma_ready) -> str:
+    """'run' | 'engine' (not for this engine family, E26) | 'missing' (Gemma not available, e.g. on an unplugged USB
+    stick: the text is kept, the run goes on) | 'off'. gemma_ready is called only when the cleanup would run."""
+    if not llm.get("enabled"):
+        return "off"
+    families = list(llm.get("engines", []))
+    if families and not any(e.startswith(f) for e in primary for f in families):
+        return "engine"
+    return "run" if gemma_ready() else "missing"
+
+
 def run(ctx: Ctx, params: dict) -> None:
     thr = load_config("thresholds")["verify"]
     lib = TRX_HOME / "library"
@@ -235,13 +246,20 @@ def run(ctx: Ctx, params: dict) -> None:
     llm = defaults["llm_cleanup"]
     primary = [e["engine"] for e in ctx.engines_used if e.get("role") != "cross_check"]
     families = list(llm.get("engines", []))
-    if llm["enabled"] and (not families or any(e.startswith(f) for e in primary for f in families)):
+    from ..llm.gemma3 import gguf_path, server_exe
+    decision = cleanup_decision(llm, primary, lambda: bool(server_exe()) and bool(gguf_path(llm.get("model", ""))))
+    if decision == "run":
         from . import cleanup
         cleanup.run(ctx, llm)
-    elif llm["enabled"]:
+    elif decision == "engine":
         ctx.log.add("polish", f"LLM cleanup skipped for {', '.join(primary) or 'this engine'}",
                     f"config/defaults.toml [llm_cleanup].engines = {families}: with this engine the cleanup changed "
                     "nothing in eval and only cost time (E26).")
+    elif decision == "missing":
+        ctx.metrics["llm_cleanup"] = "skipped: Gemma 3 not available"
+        ctx.log.add("polish", "LLM cleanup skipped: Gemma 3 is not available",
+                    "llama-server or the Gemma 3 model folder is missing (it may live on the USB stick, see "
+                    "toolchain/models/); the text is kept exactly as recognised.")
     else:
         ctx.log.add("polish", "LLM cleanup off", "config/defaults.toml [llm_cleanup].enabled = false.")
 

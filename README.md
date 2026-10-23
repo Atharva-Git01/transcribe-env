@@ -69,7 +69,10 @@ Plans: `PLAN_v0.7.md`; overall: `forensic media suit/doc/TRANSCRIPTION_ENVIRONME
   The GPU runs Whisper (language ID, `--fast`) and Gemma; the Indic engines run on the CPU (CPU build of PyTorch).
   A 1-minute phone call takes about 3 minutes. Indic-Transcribe needs about 5.5 GB of free memory (15.6 GB of RAM
   here): with a big browser session open, a run may stop with `MEMORY_LOW` (E31).
-- All models are on C: in `toolchain/models/` (a backup copy of large-v3 and Gemma 3 is on the D: USB stick).
+- The models every run needs are on C: (`toolchain/models/`). The fallbacks (IndicConformer, Whisper large-v3 and
+  medium) and Gemma 3 live on the D: USB stick, linked by directory junctions (`D:\transcribe-env-models\README.txt`).
+  With the stick unplugged, normal runs are unaffected, `trx doctor` stays READY and `--fast` runs without the Gemma
+  cleanup.
 
 ## Licences and credit
 - Built with **Indic-Transcribe-core from Bodhan AI / AI4Bharat** (Indic Open Model License v1.0). Free to self-host,

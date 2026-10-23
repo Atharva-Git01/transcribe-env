@@ -26,7 +26,10 @@ def server_exe():
 
 def gguf_path(model_id: str):
     d = model_dir(model_id)
-    files = sorted(d.glob("*.gguf"))
+    try:
+        files = sorted(d.glob("*.gguf"))
+    except OSError:                 # a junction to an unplugged USB stick
+        return None
     return files[0] if files else None
 
 

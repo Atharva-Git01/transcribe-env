@@ -186,8 +186,14 @@ def run_checks(offline_mode: bool = False, deep: bool = False) -> list[dict]:
             if d["llm_cleanup"]["enabled"]:
                 from .llm.gemma3 import gguf_path, server_exe
                 ok = bool(server_exe()) and bool(gguf_path(d["llm_cleanup"]["model"]))
-                add("llm_cleanup:ready", ok, "llama-server + Gemma 3 GGUF present" if ok else
+                # required only if the engine each language actually gets is one whose output is cleaned (E26)
+                fams = list(d["llm_cleanup"].get("engines", []))
+                firsts = [next(e for e in engine_choices(prim, k) if _inst(e)) for k in prim if k not in none_ok]
+                needed = not fams or any(e.startswith(f) for e in firsts for f in fams)
+                add("llm_cleanup:ready", ok, ("llama-server + Gemma 3 GGUF present" if ok else
                     "LLM cleanup enabled but llama-server or the Gemma 3 model is missing (see toolchain/models/)")
+                    + ("" if needed else "; only Whisper output is cleaned (--fast, fallback), so runs go on without"),
+                    required=needed)
         except Exception as e:  # noqa: BLE001
             add("engines", False, str(e))
         add("bin:deep-filter", (TRX_HOME / "toolchain/bin/deep-filter/deep-filter.exe").is_file(), "DeepFilterNet3 binary")

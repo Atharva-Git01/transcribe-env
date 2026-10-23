@@ -18,6 +18,7 @@
 | 14 | Hugging Face login | You log in yourself | **done** (2026-10-23); both models downloaded |
 | 19 | Pushed call text | Rewrite history + force-push | **done** (2026-10-23): every commit scanned clean |
 | 22 | Disk space | Delete old eval runs, keep the newest per fixture | **done**: 57 runs, 1.4 GB |
+| 21 | Keep IndicConformer? | Move it to the USB stick, plus everything not needed now; delete what is not needed | **done**: IndicConformer, Whisper large-v3 + medium, Gemma 3 and the setup downloads on D: (sha256-verified, junctions); pip/npm/conda/Composer caches and old crash dumps removed. C: 6.5 → 18.4 GB free |
 
 ## Open items (2026-10-23)
 
@@ -30,6 +31,5 @@
 | 18 | **Your recordings** | Later, as you said. Make each one a fixture with `python setup/make_fixture.py --id <id> --audio <file> --text <file> --lang mr` (one `speaker: text` line per turn). Wanted most: more phone calls, one Hindi and one Hinglish call, one with TV/music behind, one with 3+ people. |
 | 19b | **Old commits still on GitHub** | History was cleaned twice on 2026-10-23 (the second pass also removed single words and speaker names). GitHub keeps the replaced commits reachable by their direct links: e07e138 (all 26 turns of the call) and 0a975f6 with its parents (a few single words). The repo is private, so only your account can open them. To remove them completely, ask GitHub Support to purge them ("remove sensitive data", repo Atharva-Git01/transcribe-env), or delete the repo on GitHub and let Claude push the clean history to a new one. |
 | 20 | **Speed: CUDA PyTorch?** | Indic-Transcribe runs on the CPU: a 1-minute call takes about 3 minutes. The CUDA build of PyTorch (~2.5 GB download, replaces the CPU build) could run it on the RTX 3050 (bf16 needs ~2.4 GB of the 4 GB VRAM; untested). Needs your OK and disk space (item 22b). |
-| 21 | **Keep IndicConformer?** | It is the first fallback for mr/hi and almost as good on the phone call (0.377 vs 0.379), worse on clean speech (0.056 vs 0.048). Deleting it frees 2.4 GB. |
-| 22b | **Disk space and memory** | C: has 2–6 GB free. Windows' page file grew to 10 GB while the 1.2B model ran on the CPU (the PC has 15.6 GB of RAM); a restart gives most of it back. A run needs about 5.5 GB of free memory: with Chrome open (4.7 GB) three eval runs crashed, so runs now stop with `MEMORY_LOW` instead (E31). |
+| 22b | **More space on C: (your call)** | C: now has ~18 GB free. Bigger wins need you: the hibernation file (6.3 GB; `powercfg /h off` in an admin terminal turns hibernation and Fast Startup off), Docker data (7.4 GB; `docker system prune`), Android emulator images (`.android`, 5.1 GB), OneDrive files kept on this PC (32 GB; "Free up space" in OneDrive), the uv cache (2.5 GB; not touched because running tools use it). A run needs ~5.5 GB of free memory: close Chrome for long runs (E31). |
 | 23 | **`--fast` no longer pays off** | On the phone call it saves only ~10 % of the time (RTF 2.7 vs 3.1) and doubles the errors (CER 0.771 vs 0.379, speakers right 0.717 vs 0.975). Keep it, remove it, or let it mean something else? |

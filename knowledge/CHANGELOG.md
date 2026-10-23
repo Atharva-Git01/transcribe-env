@@ -53,6 +53,10 @@ Eval and privacy (E29)
 - **Memory check (E31):** a run stops with exit 51 `MEMORY_LOW` (and a next step) instead of crashing when the
   1.2B model cannot fit in memory (`[runtime.memory_gb]`). `--save-baseline` never saves a run that stopped.
 - **Fixed (E32):** Demucs separated the same audio differently on every run (an unseeded random time shift).
+- **Disk (owner's decision):** IndicConformer, Whisper large-v3 and medium and Gemma 3 moved to the D: USB stick
+  (sha256-verified, linked by junctions); setup downloads moved too; pip/npm/conda/Composer caches and old crash
+  dumps cleaned. C: 6.5 → 18.4 GB free. `trx doctor` requires Gemma only when the default engines need it, and a
+  missing Gemma skips the cleanup instead of failing a `--fast` run.
 - **`--fast`** (Whisper turbo; Gemma cleanup still runs on its output) on the phone call: CER 0.771, speakers right
   0.717, 8/26 turns missing, RTF 2.7 against 3.1 for the default. It no longer pays off (QUESTIONS.md 23).
 - **New fixtures:** FLEURS mr + music (`make_mix_fixture.py`) and AMI ES2004a, 3 minutes with 4 people

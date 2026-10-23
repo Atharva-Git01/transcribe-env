@@ -65,5 +65,7 @@ Quote paths that contain spaces.
 - If the last line says `MODEL_MISSING`: a model folder in `toolchain/models/` is missing. Report it;
   do not try to fix it.
 - If the last line says `DISK_LOW`: report it; do not delete anything.
+- If the USB stick (D:) is not plugged in: nothing changes for normal runs; `--fast` runs without the Gemma cleanup
+  (the decision log says so).
 - If the last line says `MEMORY_LOW`: the speech model needs about 5.5 GB of free memory. Ask the owner to close big
   programs (web browsers first) or restart the PC, then run the same command again.
