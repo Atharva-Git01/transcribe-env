@@ -46,10 +46,16 @@ def private_texts(home: Path = TRX_HOME) -> list[str]:
             texts += _texts_of(t)
     for t in (home / "runs").glob("*/out/transcript.json"):
         texts += _texts_of(t)
-    # the screening lines and every candidate's output on them (PLAN_v0.9) are words of private fixtures
-    for t in [*(home / "evals" / "screening").glob("*/lines.json"), *(home / "evals" / "screening").glob("*/out/*.json")]:
+    # the screening lines (PLAN_v0.9) are words of private fixtures; the candidates' outputs: screening_texts()
+    for t in (home / "evals" / "screening").glob("*/lines.json"):
         texts += _texts_of(t)
     return texts
+
+
+def screening_texts(home: Path = TRX_HOME) -> list[str]:
+    """Every candidate's output on the screening lines (private, PLAN_v0.9). A prompted model may copy its prompt
+    (invented example sentences in prompts/) into these outputs: leaks() does not count those phrases (E43)."""
+    return [x for t in (home / "evals" / "screening").glob("*/out/*.json") for x in _texts_of(t)]
 
 
 def phrases(texts: list[str], n: int = 3, min_chars: int = 12) -> set[str]:
@@ -94,7 +100,7 @@ def rare_word_leaks(home: Path = TRX_HOME) -> list[tuple[str, int, list[str]]]:
     if not models:
         return []
     generic = generic_words(home)
-    rare = {w for t in private_texts(home) for w in WORD.findall(t)
+    rare = {w for t in private_texts(home) + screening_texts(home) for w in WORD.findall(t)
             if len(w) >= 2 and w not in generic and max(m.count(w) for m in models) < COMMON_MIN}
     if not rare:
         return []
@@ -118,7 +124,9 @@ MIN_HITS = 2       # one common greeting phrase also starts many real calls; a c
 def leaks(home: Path = TRX_HOME) -> list[tuple[str, int, int]]:
     """[(file, line, number of private 3-word sequences on it)] for every pushable text file; a line counts when it
     holds at least MIN_HITS of them. Short fragments are covered by rare_word_leaks()."""
-    grams = phrases(private_texts(home))
+    prompt_grams = phrases([(home / r).read_text(encoding="utf-8") for r in pushable_files(home)
+                            if r.startswith("prompts/") and (home / r).is_file()])
+    grams = phrases(private_texts(home)) | (phrases(screening_texts(home)) - prompt_grams)
     if not grams:
         return []
     found = []

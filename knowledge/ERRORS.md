@@ -546,3 +546,13 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Rule:** a model that writes as spoken is used through the spelling transfer unless it beats the recogniser on
   words; training text holds only listed (owner-reviewable) spoken forms.
 
+## E43 — A prompted model copied its invented prompt into private outputs; the leak scan then flagged the prompt (2026-10-24)
+- **Seen:** after Whisper was screened with the as-spoken example prompt, `trx test` failed: the prompt file itself
+  held "16 private 3-word sequences". Whisper had copied its prompt (invented sentences, `prompts/`) into its output
+  on the private screening lines, and those outputs count as private text.
+- **Also:** the commit before the fix went through although `trx test` had failed, because the command checked the
+  exit code of a pipe (`trx test | tail`), exactly the mistake of E36. The commit held no private words.
+- **Fix:** `privacy.screening_texts()` keeps the candidates' outputs apart; `leaks()` drops from them the phrases
+  that a prompt file holds. Truths, eval runs and real runs are scanned as before; rare words of the outputs too.
+- **Rule:** gate a commit on `trx test`'s own exit code (run it alone, or check `$?` / `PIPESTATUS[0]`).
+
