@@ -68,6 +68,14 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 - Outputs: `transcript.txt` (as spoken) + `transcript_standard.txt` (the recogniser's spelling); every segment keeps
   both (`text`, `text_standard`). A spelling step must set `ctx.metrics["spelling_step"]` and log every changed
   word in decisions.json.
+- The spelling step is the `merge` stage (`pipeline/stages/merge.py`, `[merge] mode = "spelling_transfer"`,
+  `lora = <adapter>`): Indic-Transcribe + a decoder LoRA re-reads each line and only the spelling of words both
+  readings share is taken (`spelling.transfer`). It is in no recipe until an adapter passes screening, `trx eval`
+  and the owner's listening check. Adapters: `setup/train_it_lora.py` (controlled targets, fold by recording,
+  encoder outputs cached in `toolchain/data/`).
+- The meaning check (PLAN_v0.9 B3) is `[verify] mode = "meaning"` with a second engine (IndicConformer, CTC): a line
+  is flagged (soft `meaning_check`) only where the two readings differ on a negation or a number. The eval's `how:`
+  line reports how many lines with a wrong negation/number it marked.
 
 ## Training data (PLAN_v0.9, phase 3)
 - `toolchain/data/indicvoices-mr-slice1/` (a junction to `D:\transcribe-env-data`): IndicVoices Marathi clips as

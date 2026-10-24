@@ -35,7 +35,7 @@ HELP = """trx {v} — local, offline transcription environment
   trx explain <run-id>             plain-language account of a run
   trx eval [--engine ID] [--recipe ID] [--fixture ID] [--save-baseline]
                                    score the pipeline on evals/fixtures (maintainers)
-  trx screen build|run|report|transfer|rescore [--candidate ID] [--base ID] [--set v1]
+  trx screen build|run|report|transfer|rescore|listen|listen-score [--candidate ID] [--base ID] [--set v1]
                                    PLAN_v0.9 screening harness: every candidate model on the same fixed
                                    private lines, scored per challenge set (maintainers)
   trx doctor [--offline] [--brief] [--deep]
@@ -77,7 +77,9 @@ def build_parser() -> Parser:
     ev.add_argument("--lang")
     ev.add_argument("--save-baseline", action="store_true")
     sc = sub.add_parser("screen", add_help=False)
-    sc.add_argument("action", choices=["build", "run", "report", "transfer", "rescore"])
+    sc.add_argument("action", choices=["build", "run", "report", "transfer", "rescore", "listen", "listen-score"])
+    sc.add_argument("--n", type=int, default=20)
+    sc.add_argument("--answers")
     sc.add_argument("--candidate")
     sc.add_argument("--base", default="indic_transcribe")
     sc.add_argument("--set", default="v1")
@@ -211,6 +213,21 @@ def main(argv: list[str]) -> int:
                 out(screen.summary_line(r))
                 out(f"saved {r['file']} (texts: evals/screening/{args.set}/out/, evals/compare/; this PC only)")
                 return status_line(cmd, "OK", candidate=args.candidate, results=r["file"])
+            if args.action == "listen":
+                from pipeline import listening
+                if not args.candidate:
+                    raise TrxError("USAGE", "trx screen listen needs --candidate ID (compared with --base)")
+                r = listening.page(args.candidate, args.base, args.set, args.n)
+                out(f"listening check: {r['lines']} of {r['differing_lines']} differing lines -> {r['file']} "
+                    "(private: open it on this PC only)")
+                return status_line(cmd, "OK", lines=r["lines"])
+            if args.action == "listen-score":
+                from pipeline import listening
+                if not args.answers:
+                    raise TrxError("USAGE", "trx screen listen-score needs --answers <downloaded json>")
+                r = listening.score(args.answers)
+                out(f"owner's choices: {r['counts']}")
+                return status_line(cmd, "OK", **{k.replace('-', '_'): v for k, v in r["counts"].items()})
             if args.action == "rescore":
                 if not args.candidate:
                     raise TrxError("USAGE", "trx screen rescore needs --candidate ID")

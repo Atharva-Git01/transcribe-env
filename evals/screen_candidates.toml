@@ -47,3 +47,23 @@ judge = "ctc"
 [it_lora_v1_test_call]            # decoder LoRA (setup/train_it_lora.py) trained on IndicVoices + the Pappa lines:
 engine = "indic_transcribe_core"  # judge it on the call (by_fixture), never on Pappa (fold by recording)
 params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v1-test-call" }
+
+[it_lora_v2_test_call]            # decoder LoRA, controlled targets (only listed spoken pairs), call held out
+engine = "indic_transcribe_core"
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v2-test-call" }
+
+[it_lora_v3_test_call]            # decoder LoRA, controlled targets, rank 32, attention + feed-forward, 4 epochs, lr 5e-4
+engine = "indic_transcribe_core"
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v3-test-call" }
+
+[it_lora_v3_x025]                  # v3 applied at strength 0.25 (lora_scale)
+engine = "indic_transcribe_core"
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v3-test-call", lora_scale = 0.25 }
+
+[it_lora_v3_x05]                  # v3 applied at strength 0.5 (lora_scale)
+engine = "indic_transcribe_core"
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v3-test-call", lora_scale = 0.5 }
+
+[it_lora_v3_x075]                  # v3 applied at strength 0.75 (lora_scale)
+engine = "indic_transcribe_core"
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v3-test-call", lora_scale = 0.75 }

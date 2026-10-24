@@ -3,6 +3,35 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.9.1 — 2026-10-24 (PLAN_v0.9 phase 2 and first training: every candidate screened, spelling transfer, listening check)
+**Eval.** Not needed: no recipe and no default changed, so every run gives the 0.9.0 text. `trx test` and `trx doctor`
+pass. Screening results (`trx screen report`, `evals/results/screen_v1_summary.md`) and lessons: E42, E43.
+
+- **Downloads 1–3, 5, 6** installed and hash-verified: the phoneme recogniser (C:), MMS-1b-all + Marathi adapter and
+  IndicWhisper Marathi (USB; IndicWhisper converted to CTranslate2 by `setup/convert_whisper_ct2.py`), peft 0.21.2.
+  `onnxruntime-gpu` 1.31.0 needs CUDA 13; on the owner's condition (only if it harms no other model) 1.26.0, the last
+  CUDA 12 build, replaces it: one process running sherpa-onnx, Indic-Transcribe, IndicConformer and faster-whisper
+  gave the same text as before on every test line. IndicConformer's encoder now runs on the GPU: same accuracy,
+  RTF 0.334 → 0.136. Omnilingual ASR cannot be installed on Windows (no `fairseq2n` build).
+- **Stage 1 (zero-shot):** no candidate writes the owner's spoken forms; Indic-Transcribe stays the most accurate by
+  far (content CER 0.207; next IndicConformer CTC 0.247). The phoneme judge cannot tell spellings apart on phone calls
+  (edit distance or CTC likelihood: 114–160 of 241 standard words it would switch). IndicWhisper needs decoding
+  without timestamps (`without_timestamps`).
+- **Stage 2 (decoder LoRA, `setup/train_it_lora.py`, the call held out):** v1 (whole verbatim text) learned the
+  IndicVoices transcribers' habits ("nahi" → "na": negation errors 10 → 20); v2 (controlled targets) barely changed
+  spellings; v3 (rank 32, attention + feed-forward, 4 epochs) writes spoken forms: through the spelling transfer 15 of
+  48 of the owner's spoken forms (none before), content CER and negations unchanged, but 64 of 224 standard words
+  switched (mostly नाही → नाई / नाय, आणि → आनि, पण → पन). A strength sweep (`lora_scale`) finds no point with ≤ 5 %
+  switches and real gains: whether those switches are errors or spoken forms the transcript did not mark is the
+  owner's listening check to decide.
+- **New tools:** `trx screen transfer` (spelling transfer from stored outputs), `rescore`, per-recording scores,
+  phoneme-judge candidates; `trx screen listen` / `listen-score` (the owner's blind listening check: a local page with
+  the audio in `evals/compare/`, never published); the `merge` stage (spelling transfer in a run; in no recipe yet);
+  `[verify] mode = "meaning"` (B3: a second engine re-reads each line, negation/number differences are flagged —
+  7 of 10 such flags were real on the screening lines; in no recipe until `trx eval` has measured it).
+- **Scoring:** negations count listed spoken forms ("nai" is still a negation); the `how:` line reports how many lines
+  with a wrong negation/number the meaning check marked.
+
 ## 0.9.0 — 2026-10-24 (PLAN_v0.9 phase 1: measuring "as spoken", the screening harness, two transcript copies)
 **Eval (seeded; baseline saved with 0.9.0).** Every CER identical to 0.8.3/0.8.4 (no change of the text):
 

@@ -1,8 +1,9 @@
 # Plan v0.9: transcripts as spoken, every candidate model tested on the GPU (2026-10-24)
 
-> **Status: being built (owner's go-ahead 2026-10-24).** Phase 1 is done (0.9.0: spoken-variant list, spoken-form
-> metric and gate, screening harness, two transcript copies, names list); phase 2 is next. Every adopted change goes
-> through `trx eval` (all fixtures, failure monitor).
+> **Status: being built (owner's go-ahead 2026-10-24).** Phase 1 done (0.9.0). Phase 2 done (0.9.1: every candidate
+> screened, E42). Phase 3 started: decoder LoRA v3 + spelling transfer writes 15 of 48 spoken forms but switches 64 of
+> 224 standard words — waiting for the owner's listening check (phase 4) and the variant review (D3). Every adopted
+> change goes through `trx eval` (all fixtures, failure monitor).
 
 **Changes since version 1 (2026-10-23):**
 - **Testing.** Every candidate model is tested as it is, and every one that can learn from a *small* amount of audio
@@ -226,7 +227,7 @@ shows the other reading.
 | Phase | Version | What | Needs |
 |---|---|---|---|
 | 1 | 0.9.0 | the screening harness and challenge sets; the spoken-form metric and gate; as-spoken and standard copies (A1); spoken-variant list v1 (A2); "written N ways" names list (B4a) | **done 2026-10-24** |
-| 2 | 0.9.1 | downloads 1–6; stage 1, every candidate zero-shot on the GPU; IndicConformer on the GPU | the approved list |
+| 2 | 0.9.1 | downloads 1–6; stage 1, every candidate zero-shot on the GPU; IndicConformer on the GPU | **done 2026-10-24** (Omnilingual impossible on Windows; onnxruntime-gpu 1.26.0 for CUDA 12) |
 | 3 | 0.9.2 | IndicVoices slice; stage 2, small-data training (Indic-Transcribe LoRA, MMS adapter, Omnilingual 300M) with folds | done 2026-10-24: terms accepted, slice fetched |
 | 4 | 0.9.3 | stage 3: full eval of the finalists; owner's listening check; adopt (spelling transfer or engine swap) | owner: 20-line listening check |
 | 5 | 0.9.4 | B-track: meaning check, second reading, second diarization pass, sound check, GPU for the helpers | — |

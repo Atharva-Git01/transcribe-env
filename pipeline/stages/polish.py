@@ -315,6 +315,8 @@ def run(ctx: Ctx, params: dict) -> None:
         for seg in ctx.segments:
             lang = seg.get("language") or ctx.language or ""
             new, n, left = digits_to_words(seg["text"], lang)
+            if "text_standard" in seg:          # the standard copy follows the same number convention (A1)
+                seg["text_standard"] = digits_to_words(seg["text_standard"], lang)[0]
             if n:
                 seg.setdefault("text_asr", seg["text"])
                 seg["text"] = new

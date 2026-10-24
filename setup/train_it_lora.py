@@ -36,6 +36,7 @@ sys.path.insert(0, str(HOME))
 from pipeline.audio import decode_mono, read_wav  # noqa: E402
 
 TARGETS = ["query_net", "key_net", "value_net", "out_projection"]   # decoder attention only (the encoder's are linear_*)
+FFN_TARGETS = ["dense_in", "dense_out"]                               # the decoder's feed-forward layers (--ffn)
 CACHE_VERSION = 1          # bump when the clip preparation changes (phone band, decoding)
 WIDE_BAND = 0.005          # share of energy above 4 kHz from which a clip counts as wide band (calls: ~0)
 
@@ -91,22 +92,18 @@ def examples(slice_dir: Path, set_dir: Path, test_fixture: str, owner_weight: in
     iv = [json.loads(x) for x in (slice_dir / "manifest.jsonl").read_text(encoding="utf-8").splitlines()]
     rnd.shuffle(iv)
     n_val = max(20, len(iv) // 20)
-    train, val, squeezed, changed = [], [], 0, 0
-    for k, m in enumerate(iv):
-        x = decode_mono(slice_dir / m["audio"])
-        if high_band_share(x) > WIDE_BAND:
-            x = phone_band(x)
-            squeezed += 1
+    train, val, changed = [], [], 0
+    for k, m in enumerate(iv):          # audio is read only when its encoder output is not in the cache
         text = m["verbatim"] if targets == "verbatim" else controlled(m["normalized"], m["verbatim"])
         changed += text != m["normalized"]
-        (val if k < n_val else train).append((x, text, "indicvoices", m["id"]))
+        (val if k < n_val else train).append((slice_dir / m["audio"], text, "indicvoices", m["id"]))
     lines = json.loads((set_dir / "lines.json").read_text(encoding="utf-8"))["segments"]
     own = [x for x in lines if x["fixture"] != test_fixture]
     for x in own:
         audio, _ = read_wav(set_dir / "audio" / f"{x['id']}.wav")
         train += [(audio, x["text"], "owner", x["id"])] * owner_weight
     counts = {"targets": targets, "indicvoices_with_spoken_forms": changed,
-              "indicvoices_train": len(iv) - n_val, "indicvoices_heldout": n_val, "phone_band_squeezed": squeezed,
+              "indicvoices_train": len(iv) - n_val, "indicvoices_heldout": n_val,
               "owner_lines": len(own), "owner_weight": owner_weight,
               "owner_fixtures": sorted({x["fixture"] for x in own}), "test_fixture": test_fixture}
     return train, val, counts
@@ -125,6 +122,7 @@ def main() -> int:
     ap.add_argument("--owner-weight", type=int, default=3)
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--targets", choices=["controlled", "verbatim"], default="controlled")
+    ap.add_argument("--ffn", action="store_true", help="also adapt the decoder's feed-forward layers")
     ap.add_argument("--cache", default="toolchain/data/it-encoder-cache-v1.pt",
                     help="encoder outputs of the IndicVoices clips, kept between runs (same base model, same clips)")
     a = ap.parse_args()
@@ -156,6 +154,8 @@ def main() -> int:
         cache = {"__key__": key}
     fresh = 0
 
+    squeezed = set(cache.get("__squeezed__", []))
+
     def encode(items):
         nonlocal fresh
         enc = []
@@ -163,6 +163,11 @@ def main() -> int:
             if src == "indicvoices" and cid in cache:
                 e = cache[cid]
             else:
+                if src == "indicvoices":
+                    x = decode_mono(x)
+                    if high_band_share(x) > WIDE_BAND:
+                        x = phone_band(x)
+                        squeezed.add(cid)
                 wav = asr._load(np.ascontiguousarray(x, dtype=np.float32))
                 feats, mask = asr._features(wav)
                 with torch.inference_mode():
@@ -176,13 +181,16 @@ def main() -> int:
     t1 = time.time()
     tr, va = encode(train), encode(val)
     if fresh:
+        cache["__squeezed__"] = sorted(squeezed)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(cache, cache_path)
+    counts["phone_band_squeezed"] = len(squeezed) if fresh or "__squeezed__" in cache else None   # None: cache made before 0.9.1
     print(f"encoder outputs: {len(tr) + len(va)} clips ({fresh} computed, the rest from {a.cache}), "
           f"{time.time() - t1:.0f} s")
     for p in model.parameters():
         p.requires_grad_(False)
-    cfg = LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05, target_modules=TARGETS, bias="none")
+    targets = TARGETS + (FFN_TARGETS if a.ffn else [])
+    cfg = LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05, target_modules=targets, bias="none")
     pm = get_peft_model(model, cfg)
     params = [p for p in pm.parameters() if p.requires_grad]
     n_params = sum(p.numel() for p in params)
@@ -229,7 +237,7 @@ def main() -> int:
             opt.step()
             sched.step()
             step += 1
-            run += float(loss)
+            run += float(loss.detach())
             if k % 50 == 0:
                 print(f"  epoch {ep} batch {k}/{len(batches)} loss {run / 50:.4f}")
                 run = 0.0
@@ -242,7 +250,7 @@ def main() -> int:
     (out / "SOURCE.json").write_text(json.dumps({
         "id": out.name, "kind": "LoRA adapter for indic_transcribe_core (decoder attention)", "private": True,
         "base_model_sha256": info.get("model_sha256"), "made_by": "setup/train_it_lora.py",
-        "data": counts, "settings": {"rank": a.rank, "alpha": 2 * a.rank, "dropout": 0.05, "targets": TARGETS,
+        "data": counts, "settings": {"rank": a.rank, "alpha": 2 * a.rank, "dropout": 0.05, "targets": targets,
                                      "lr": a.lr, "epochs": a.epochs, "batch": a.batch, "seed": a.seed,
                                      "trainable_parameters": n_params, "wide_band_share": WIDE_BAND},
         "history": history, "minutes": round((time.time() - t0) / 60, 1), "files": files}, indent=2), encoding="utf-8")

@@ -73,6 +73,12 @@ Every candidate model is decoded on the same fixed lines, one model at a time on
   content and strict CER. Also the load time, real-time factor and peak GPU memory.
 - `trx screen report` writes `results/screen_<set>_summary.md` (numbers only); per line truth vs output:
   `compare/screen_<set>_<candidate>.md` (this PC only).
+- Scores are also given per recording (`by_fixture`): a model trained on one recording is judged on the others only.
+- `trx screen transfer --candidate <id>` scores the spelling transfer (the base's words, the candidate's spelling)
+  from stored outputs; `trx screen rescore --candidate <id>` re-scores a stored output after a scorer change.
+- A candidate with `judge = true` (edit distance) or `judge = "ctc"` (likelihood) is a phoneme judge: scored on
+  the S slots only, by which spelling of each line it supports.
+- Stage-1 results (0.9.1): knowledge/ERRORS.md E42.
 
 ## Accepting a change
 - The target fixture/recipe must improve.

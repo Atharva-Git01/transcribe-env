@@ -125,8 +125,14 @@ class IndicTranscribeEngine:
             lp = Path(params["lora"]) if Path(params["lora"]).is_absolute() else TRX_HOME / params["lora"]
             if not (lp / "adapter_config.json").is_file():
                 raise TrxError("MODEL_MISSING", f"LoRA adapter not found: {lp}")
-            self.asr.model = PeftModel.from_pretrained(self.asr.model, str(lp)).merge_and_unload().eval()
-            info["lora"] = lp.name
+            pm = PeftModel.from_pretrained(self.asr.model, str(lp))
+            scale = float(params.get("lora_scale", 1.0))   # 0 = the plain model, 1 = the adapter as trained
+            if scale != 1.0:
+                for m in pm.modules():
+                    if isinstance(getattr(m, "scaling", None), dict):
+                        m.scaling = {k: v * scale for k, v in m.scaling.items()}
+            self.asr.model = pm.merge_and_unload().eval()
+            info["lora"] = lp.name + (f" x{scale:g}" if scale != 1.0 else "")
         if fallback:
             info["fallback_reason"] = fallback
         return info

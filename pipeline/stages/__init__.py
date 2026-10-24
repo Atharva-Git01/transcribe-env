@@ -26,8 +26,8 @@ def _available() -> dict:
         has_asr = True
     except ImportError:
         has_asr = False
-    for name in ("convert", "denoise", "vad", "lid", "diarize", "recognise", "verify", "polish", "gate", "export",
-                 "separate"):
+    for name in ("convert", "denoise", "vad", "lid", "diarize", "recognise", "verify", "merge", "polish", "gate",
+                 "export", "separate"):
         if name in ("vad", "lid", "recognise", "verify") and not has_asr:
             continue
         try:

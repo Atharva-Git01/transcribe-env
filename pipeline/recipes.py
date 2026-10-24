@@ -29,6 +29,7 @@ STAGE_KEYS = {
     "recognise.indic_conformer": {"decoder", "piece_max_s", "threads", "segmentation"},
     "recognise.indic_transcribe": {"piece_max_s", "threads", "segmentation", "dtype", "device", "num_beams"},
     "verify": {"required", "mode", "engine", "decoder"},
+    "merge": {"required", "mode", "lora"},
     "polish": {"doubled_words_guard"},
     "gate": {"thresholds"},
     "export": {"formats"},
