@@ -3,6 +3,16 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.9.2 — 2026-10-24 (PLAN_v0.9 B3: the meaning check is on for phone calls)
+**Eval (seeded; baseline saved).** Text unchanged: Pappa CER 0.361, 20-min call 0.232 (content 0.191), as before.
+
+- `recipes/phone_call_mono.toml` v10: `[verify] mode = "meaning"` with IndicConformer (CTC, encoder on the GPU). It
+  re-reads every line and flags (soft `meaning_check`, with its reading) where it hears a negation or a number
+  differently. 20-min call: 8 marks, 5 of them on lines whose negation/number really is wrong (5 of the 15 such
+  lines); bad lines flagged 10 → 11 of 18. Pappa: no marks. Cost: run time +45 % on the call (RTF 0.56 → 0.81), mostly
+  the second engine; skipped with a log line when IndicConformer (USB) is not plugged in.
+- The baseline keys of the phone fixtures now name both engines (`indic_transcribe_core+indic_conformer_600m`).
+
 ## 0.9.1 — 2026-10-24 (PLAN_v0.9 phase 2 and first training: every candidate screened, spelling transfer, listening check)
 **Eval.** Not needed: no recipe and no default changed, so every run gives the 0.9.0 text. `trx test` and `trx doctor`
 pass. Screening results (`trx screen report`, `evals/results/screen_v1_summary.md`) and lessons: E42, E43.

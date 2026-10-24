@@ -2,7 +2,7 @@
 
 [recipe]
 id = "phone_call_mono"
-version = 9
+version = 10
 description = "Telephone-band call recorded on one channel (or two identical channels). Marathi/Hindi likely."
 when_to_use = "bandwidth.class == narrowband; layout mono or duplicated_mono; SNR >= 12 dB."
 when_not_to_use = "Two genuinely different channels (use true_stereo_call); heavy noise (noisy_field_audio)."
@@ -90,7 +90,10 @@ dtype = "bfloat16"
 device = "auto"                   # "auto" = GPU when it fits in memory, else CPU
 
 [verify]
-required = false                  # runs only when config/defaults.toml [engines.cross_check].enabled = true
+required = false
+mode = "meaning"                  # PLAN_v0.9 B3: IndicConformer (CTC) re-reads each line; a negation/number it reads
+engine = "indic_conformer_600m"   #   differently is flagged (soft flag meaning_check). Screening: 7 of 10 flags real.
+decoder = "ctc"                   #   Skipped, with a log line, when the engine is not installed (USB unplugged).
 
 [polish]
 doubled_words_guard = true        # library/doubled_words/<lang>.txt: real repeats are never treated as loops

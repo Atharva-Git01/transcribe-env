@@ -1,6 +1,6 @@
 {
   "schema": "trx.baseline/1",
-  "env_version": "0.9.0",
+  "env_version": "0.9.1",
   "scores": {
     "pappa_260603_211622|phone_call_mono|faster_whisper_large_v3|mr": {
       "cer": 0.5132,
@@ -82,6 +82,26 @@
       "switch_rate": 0.0,
       "env_version": "0.9.0",
       "utc": "2026-10-24T06:18:44Z"
+    },
+    "pappa_260603_211622|phone_call_mono|indic_transcribe_core+indic_conformer_600m|mr": {
+      "cer": 0.3612,
+      "wer": 0.6875,
+      "speaker_acc": 0.9663,
+      "cer_content": 0.3266,
+      "spoken_recall": 0.0,
+      "switch_rate": 0.0,
+      "env_version": "0.9.1",
+      "utc": "2026-10-24T10:40:03Z"
+    },
+    "call_240509_20min|phone_call_mono|indic_transcribe_core+indic_conformer_600m|mr": {
+      "cer": 0.2318,
+      "wer": 0.478,
+      "speaker_acc": 0.9873,
+      "cer_content": 0.1908,
+      "spoken_recall": 0.04,
+      "switch_rate": 0.0,
+      "env_version": "0.9.1",
+      "utc": "2026-10-24T10:57:03Z"
     }
   },
   "references": {
