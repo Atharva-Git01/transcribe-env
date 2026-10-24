@@ -1,0 +1,41 @@
+# Candidates of the PLAN_v0.9 screening harness: `trx screen run --candidate <id>` (pipeline/screen.py).
+# engine = an engine id of manifest.toml (one model at a time, on the GPU when it fits: owner's rule); params = that
+# engine family's load settings (as in a recipe's [recognise.<family>] table); fw = Whisper decoding settings;
+# prompt = a prompt file (Whisper only). Generic settings only: never words of a case.
+
+[indic_transcribe]                # the current engine: the baseline every candidate is compared with
+engine = "indic_transcribe_core"
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8 }
+
+[indic_conformer_ctc]             # CPU until onnxruntime-gpu is installed (PLAN_v0.9 B6)
+engine = "indic_conformer_600m"
+params = { decoder = "ctc", piece_max_s = 20.0, threads = 8 }
+
+[indic_conformer_rnnt]
+engine = "indic_conformer_600m"
+params = { decoder = "rnnt", piece_max_s = 20.0, threads = 8 }
+
+[whisper_large_v3_as_spoken_prompt]   # spellings through its prompt: example sentences written as spoken
+engine = "faster_whisper_large_v3"
+params = { compute_type_gpu = "int8_float16", compute_type_cpu = "int8" }
+fw = { beam_size = 5, best_of = 5, temperature = [0.0], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4 }
+prompt = "prompts/initial_prompts/mr/as_spoken.txt"
+
+[indicwhisper_mr]                 # AI4Bharat Vistaar: Whisper fine-tuned on Indian speech (MIT); CTranslate2 copy
+engine = "faster_whisper_indicwhisper_mr"
+params = { compute_type_gpu = "int8_float16", compute_type_cpu = "int8" }
+fw = { beam_size = 5, best_of = 5, temperature = [0.0], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4 }
+
+[indicwhisper_mr_as_spoken_prompt]
+engine = "faster_whisper_indicwhisper_mr"
+params = { compute_type_gpu = "int8_float16", compute_type_cpu = "int8" }
+fw = { beam_size = 5, best_of = 5, temperature = [0.0], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4 }
+prompt = "prompts/initial_prompts/mr/as_spoken.txt"
+
+[mms_1b_all_mar]                  # Meta MMS-1b-all + its Marathi adapter: CC-BY-NC, tests only, never paid work
+engine = "mms_1b_all_mar"
+params = { target_lang = "mar" }
+
+[phoneme_xlsr53_espeak]           # the acoustic judge of spellings: no transcript, scored on the S slots
+engine = "phoneme_xlsr53_espeak"
+judge = true

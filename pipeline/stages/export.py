@@ -1,4 +1,9 @@
-"""Stage: export. transcript .txt .srt .vtt .json + review_list.md (+ readable variant when --style readable)."""
+"""Stage: export. transcript .txt .srt .vtt .json + review_list.md (+ readable variant when --style readable).
+
+Spelling (owner, 2026-10-23; PLAN_v0.9 A1): the main transcript is written as spoken and transcript_standard.txt keeps
+the recogniser's standard spelling for searching and quoting; every segment carries both (`text`, `text_standard`).
+Until an as-spoken spelling step is adopted the two are the same text, and the header says so.
+review_list.md also lists names and rare words written in more than one way (PLAN_v0.9 B4a)."""
 from __future__ import annotations
 
 import re
@@ -20,6 +25,43 @@ def _line_text(s: dict, review_tag: str) -> str:
     return s["text"] + (f" {review_tag}" if _counted(s["flags"]) else "")
 
 
+def _spelling_line(spelling: str, respelled: int, step: str | None) -> str:
+    if spelling != "as_spoken":
+        return f"Spelling: {spelling}"
+    if not step:
+        return ("Spelling: the recogniser's standard spelling — no as-spoken spelling step is adopted yet (PLAN_v0.9); "
+                "transcript_standard.txt holds the same text.")
+    return (f"Spelling: as spoken ({step}); {respelled} line(s) differ from the recogniser's standard spelling, "
+            "which transcript_standard.txt keeps.")
+
+
+def _names_section(ctx: Ctx) -> list[str]:
+    """review_list.md rows for names/rare words the transcript writes in several ways (needs the lexicon)."""
+    import tomllib
+
+    from .. import lm
+    from ..common import TRX_HOME
+    from ..names import written_ways
+    lang = ctx.language or ""
+    if not lang or not lm.installed(lang):
+        return []
+    f = TRX_HOME / "library" / "scoring" / f"{lang}.toml"
+    endings = tuple(tomllib.loads(f.read_text(encoding="utf-8")).get("number_endings", [])) if f.is_file() else ()
+    hot = ctx.stage_params("recognise").get("hotwords") or []
+    groups = written_ways(ctx.segments, lang, lm.load(lang).count, hot, endings)
+    ctx.metrics["names_written_several_ways"] = len(groups)
+    if not groups:
+        return []
+    rows = ["", "## Names or rare words written in more than one way", "",
+            "The same name may have come out in different spellings in different turns. Check which one is right; "
+            "the transcript is not changed.", "", "| Spellings (times, first at) | Listed spelling (--hotwords) |",
+            "|---|---|"]
+    for g in groups[:40]:
+        ways = " · ".join(f"{st} ({n}×, {fmt_ts(t, '.')})" for st, n, t in g["spellings"])
+        rows.append(f"| {ways} | {g['listed'] or '—'} |")
+    return rows
+
+
 def _readable(text: str) -> str:
     toks = [t for t in text.split() if t.strip(".,?!।").lower() not in FILLERS]
     return re.sub(r"\s+", " ", " ".join(toks)).strip()
@@ -28,6 +70,10 @@ def _readable(text: str) -> str:
 def run(ctx: Ctx, params: dict) -> None:
     out_cfg = ctx.plan["output"]
     style = out_cfg.get("style", "verbatim")
+    spelling = out_cfg.get("spelling", "standard")
+    for s in ctx.segments:                   # the standard copy: the recogniser's spelling (PLAN_v0.9 A1)
+        s.setdefault("text_standard", s["text"])
+    respelled = sum(1 for s in ctx.segments if s["text_standard"] != s["text"])
     tag = out_cfg.get("review_tag", "[review]")
     formats = out_cfg.get("formats", ["txt", "srt", "vtt", "json"]) if params.get("formats", "defaults") == "defaults" \
         else params["formats"]
@@ -39,6 +85,7 @@ def run(ctx: Ctx, params: dict) -> None:
         f"Duration: {ctx.passport['container']['duration_sec']} s · Language: {ctx.language} ({ctx.language_source})",
         f"Recipe: {ctx.plan['recipe']['id']} v{ctx.plan['recipe']['version']} · Engine: {engines} · Style: {style}",
         f"Verdict: {ctx.verdict} · Environment {env_version()}",
+        _spelling_line(spelling, respelled, ctx.metrics.get("spelling_step")),
         "Lines marked [review] are uncertain; review_list.md lists them and also words the lexicon does not know. "
         "Speakers: SPK1, SPK2 … (by voice), SPK? = not determined.",
         "",
@@ -65,6 +112,14 @@ def run(ctx: Ctx, params: dict) -> None:
                                      for s in ctx.segments]
             p.write_text("\n".join(blocks), encoding="utf-8")
             written[p.name] = p
+    if spelling == "as_spoken" and "txt" in formats:
+        p = ctx.out / "transcript_standard.txt"
+        lines = [f"[{fmt_ts(s['start'], '.')} - {fmt_ts(s['end'], '.')}] {s['speaker']}: {s['text_standard']}"
+                 + (f" {tag}" if _counted(s["flags"]) else "") for s in ctx.segments]
+        std_header = header[:1] + ["Standard-spelling copy of transcript.txt (the recogniser's own spelling), for "
+                                   "searching and quoting. The main transcript is written as spoken."] + header[1:]
+        p.write_text("\n".join(std_header + lines) + "\n", encoding="utf-8")
+        written[p.name] = p
     if "json" in formats:
         p = ctx.out / "transcript.json"
         write_json(p, {"schema": "trx.transcript/1", "run_id": ctx.run_dir.name, "env_version": env_version(),
@@ -82,9 +137,11 @@ def run(ctx: Ctx, params: dict) -> None:
                         f"{'; '.join(r['reasons']).replace('|', '/')} |")
     else:
         rows.append("Nothing flagged.")
+    rows += _names_section(ctx)
     rl.write_text("\n".join(rows) + "\n", encoding="utf-8")
     written[rl.name] = rl
     for p in written.values():
         ctx.custody.add(p, "output", "export")
     ctx.log.add("export", f"wrote {', '.join(sorted(written))}", "Deliverables in out/; every file hashed in custody.json.",
-                style=style)
+                style=style, spelling=spelling, lines_respelled=respelled,
+                names_written_several_ways=ctx.metrics.get("names_written_several_ways", 0))

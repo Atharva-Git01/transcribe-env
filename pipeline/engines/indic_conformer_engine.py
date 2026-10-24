@@ -7,6 +7,10 @@ from the repo are never called, so nothing can reach the network.
 
 The engine decodes pieces: the given clip_timestamps, else the speech regions (VAD) grouped into pieces of <= 20 s,
 else the whole audio in 30 s pieces. Each piece becomes one segment with word timings (CTC) — polish/split work as usual.
+
+GPU first (owner; PLAN_v0.9 B6): with onnxruntime-gpu and a usable CUDA device the ENCODER runs on the GPU (it is
+almost all of the work); the small CTC/RNNT decoder networks stay on the CPU, where their many tiny calls are faster.
+`device = "cpu"` in the engine's settings keeps everything on the CPU.
 """
 from __future__ import annotations
 
@@ -55,12 +59,22 @@ class IndicConformerEngine:
         self.decoder = str(params.get("decoder", "ctc"))
         names = ["encoder", "ctc_decoder"] + (["rnnt_decoder", "joint_enc", "joint_pred", "joint_pre_net"]
                                                if self.decoder == "rnnt" else [])
+        gpu_ok = device == "cuda" and params.get("device", "auto") in ("auto", "cuda") \
+            and "CUDAExecutionProvider" in ort.get_available_providers()
+        if gpu_ok:
+            from .. import gpu
+            gpu.prepare()                                  # cuDNN / cuBLAS DLL folders, as for the other engines
         for n in names:
-            self.s[n] = ort.InferenceSession(str(a / f"{n}.onnx"), sess_options=opts, providers=["CPUExecutionProvider"])
+            prov = ["CUDAExecutionProvider", "CPUExecutionProvider"] if gpu_ok and n == "encoder" else ["CPUExecutionProvider"]
+            self.s[n] = ort.InferenceSession(str(a / f"{n}.onnx"), sess_options=opts, providers=prov)
         self.vocab = json.loads((a / "vocab.json").read_text(encoding="utf-8"))
         self.masks = json.loads((a / "language_masks.json").read_text(encoding="utf-8"))
-        return {"engine": self.id, "device": "cpu", "compute_type": f"onnx fp32 ({self.decoder})",
+        dev = "cuda" if self.s["encoder"].get_providers()[0] == "CUDAExecutionProvider" else "cpu"
+        info = {"engine": self.id, "device": dev, "compute_type": f"onnx fp32 ({self.decoder})",
                 "model_sha256": source_info(self.id).get("model_sha256")}
+        if gpu_ok and dev == "cpu":
+            info["fallback_reason"] = "onnxruntime could not start the CUDA provider; the encoder runs on the CPU"
+        return info
 
     def detect_language(self, audio: np.ndarray, candidates: list[str]) -> dict:
         raise TrxError("CONFIG_INVALID", "IndicConformer has no language identification; LID uses a Whisper engine")

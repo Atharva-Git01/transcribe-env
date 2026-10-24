@@ -46,6 +46,9 @@ def private_texts(home: Path = TRX_HOME) -> list[str]:
             texts += _texts_of(t)
     for t in (home / "runs").glob("*/out/transcript.json"):
         texts += _texts_of(t)
+    # the screening lines and every candidate's output on them (PLAN_v0.9) are words of private fixtures
+    for t in [*(home / "evals" / "screening").glob("*/lines.json"), *(home / "evals" / "screening").glob("*/out/*.json")]:
+        texts += _texts_of(t)
     return texts
 
 

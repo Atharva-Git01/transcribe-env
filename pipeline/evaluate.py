@@ -22,6 +22,8 @@ RESULTS = TRX_HOME / "evals" / "results"              # pushed to GitHub: number
 COMPARE = TRX_HOME / "evals" / "compare"              # per-turn text (truth vs output): this PC only (git-ignored)
 BASELINE = TRX_HOME / "evals" / "baseline.json"
 NOISE_MARGIN = 0.01
+SPOKEN_RECALL_MARGIN = 0.05     # as-spoken truths: spoken-form recall may not drop by more (one slot is ~2-4 %)
+MAX_SWITCH_RATE = 0.05          # ... and at most 5 % of the standard words may be switched to a spoken form (PLAN_v0.9)
 
 
 def list_fixtures() -> list[dict]:
@@ -71,9 +73,15 @@ def turns_without_text(turns: list[dict]) -> list[dict]:
 def failure_monitor(truth: dict, hyp: str, hyp_segs: list[dict], lang: str, turns: list[dict]) -> dict:
     """HOW the transcript went wrong (E39), numbers only: the CER left once spelling conventions are folded away,
     what happened to each turn (also written into the turn rows), negations and numbers lost or added, short lines
-    (< 2 s) against long ones, and how many of the bad lines (> 40 % wrong) carry a review flag."""
+    (< 2 s) against long ones, how many of the bad lines (> 40 % wrong) carry a review flag, and for a truth written
+    as spoken the spoken forms (PLAN_v0.9: how many it wrote as spoken, how many standard words it switched)."""
     ref = truth["reference_text"]
     mon = {"cer_content": round(cer_level(ref, hyp, lang, "content"), 4)}
+    if truth.get("spelling") == "as_spoken":
+        from .spelling import spoken_forms
+        sf = spoken_forms(ref, hyp, lang)
+        if sf:
+            mon["spoken_forms"] = sf
     if truth.get("segments") and hyp_segs:
         kinds = turn_outcomes(truth["segments"], hyp_segs, lang)
         for t, k in zip(turns, kinds):
@@ -95,15 +103,28 @@ def failure_monitor(truth: dict, hyp: str, hyp_segs: list[dict], lang: str, turn
     return mon
 
 
+def spelling_rows(truth: dict, hyp: str, lang: str) -> list[dict]:
+    """The spoken-form slots of an as-spoken truth, word by word (truth word, output word, outcome): for the
+    comparison file on this PC only (evals/compare/), never for evals/results/."""
+    if truth.get("spelling") != "as_spoken":
+        return []
+    from .spelling import spoken_forms
+    sf = spoken_forms(truth["reference_text"], hyp, lang, detail=True)
+    return sf["rows"] if sf else []
+
+
 def monitor_line(m: dict) -> str:
     """One line for the console and the comparison files."""
     t = m.get("turn_outcomes", {})
     turns = (f"turns: {t.get('correct', 0)} correct, {t.get('misheard', 0)} misheard, {t.get('merged', 0)} merged, "
              f"{t.get('lost', 0)} lost (+{t.get('lost_backchannel', 0)} backchannels), "
              f"{t.get('wrong_speaker', 0) + t.get('merged_other', 0)} wrong speaker | ") if t else ""
+    sf = m.get("spoken_forms")
+    spoken = (f" | spoken forms written as spoken {sf['hits']}/{sf['hits'] + sf['misses']}, standard words switched "
+              f"{sf['switched']}/{sf['kept'] + sf['switched']}") if sf else ""
     return (f"content CER {m['cer_content']} | {turns}negations {m['negation_errors']} wrong of {m['negations']} | "
             f"numbers {m['number_errors']} wrong of {m['numbers']} | lines < 2 s CER {m['short_line_cer']}, "
-            f"longer {m['long_line_cer']} | bad lines flagged {m['bad_lines_flagged']}/{m['bad_lines']}")
+            f"longer {m['long_line_cer']} | bad lines flagged {m['bad_lines_flagged']}/{m['bad_lines']}{spoken}")
 
 
 def _write_comparison(path, result: dict, text: bool) -> None:
@@ -121,6 +142,11 @@ def _write_comparison(path, result: dict, text: bool) -> None:
         lines += ["", "## Failure monitor (how it went wrong, E39)", ""]
         lines += [f"- **{r['fixture']}**: {monitor_line(r['monitor'])}" for r in result["rows"] if r.get("monitor")]
     for r in result["rows"]:
+        if text and r.get("spelling_rows"):
+            shown = [x for x in r["spelling_rows"] if x["outcome"] in ("hits", "misses", "switched")]
+            lines += ["", f"## {r['fixture']}: spoken forms (truth written as spoken)", "",
+                      "| truth | output | outcome |", "|---|---|---|"]
+            lines += [f"| {x['truth']} | {x['hyp'] or '—'} | {x['outcome']} |" for x in shown]
         if not r.get("turn_rows"):
             continue
         if text:
@@ -193,14 +219,15 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             "hindi_forms": hindi_forms if t_lang == "mr" else None,
             "rtf": round((time.time() - t0) / max(1e-6, float(truth.get("duration_sec") or 1)), 2),
             "monitor": failure_monitor(truth, hyp, hyp_segs, t_lang, turns),
-            "turn_rows": turns,
+            "turn_rows": turns, "spelling_rows": spelling_rows(truth, hyp, t_lang),
         })
     result = {"schema": "trx.eval/1", "env_version": env_version(), "utc": utc_now(),
               "overrides": {"engine": engine, "recipe": recipe, "lang": lang}, "rows": rows}
     RESULTS.mkdir(parents=True, exist_ok=True)
     COMPARE.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"eval_{result['utc'].replace(':', '').replace('-', '')}_{engine or 'default'}.json"
-    public = dict(result, rows=[dict(r, turn_rows=turns_without_text(r["turn_rows"])) for r in rows])
+    public = dict(result, rows=[dict({k: v for k, v in r.items() if k != "spelling_rows"},
+                                     turn_rows=turns_without_text(r["turn_rows"])) for r in rows])
     write_json(out, public)
     _write_comparison(out.with_suffix(".md"), public, text=False)
     _write_comparison(COMPARE / out.with_suffix(".md").name, result, text=True)
@@ -220,6 +247,12 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             measure, before, now = "CER", prev["cer"] if prev else None, r["cer"]
         if prev and now > before + NOISE_MARGIN:
             regressions.append(f"{key}: {measure} {before} -> {now}")
+        sf = r["monitor"].get("spoken_forms") or {}
+        if prev and sf.get("recall") is not None and prev.get("spoken_recall") is not None                 and sf["recall"] < prev["spoken_recall"] - SPOKEN_RECALL_MARGIN:
+            regressions.append(f"{key}: spoken-form recall {prev['spoken_recall']} -> {sf['recall']}")
+        if sf.get("switch_rate") is not None and sf["switch_rate"] > MAX_SWITCH_RATE:
+            regressions.append(f"{key}: {sf['switch_rate']:.0%} of the standard words switched to a spoken form "
+                               f"(at most {MAX_SWITCH_RATE:.0%})")
     result["regressions"] = regressions
     if save_baseline:
         base.setdefault("scores", {})
@@ -227,8 +260,10 @@ def run_eval(engine: str | None = None, recipe: str | None = None, fixture: str 
             if r["exit"] not in ("OK", "GATE_FAILED") or not r["engines"]:   # a run that stopped is no baseline
                 r["baseline_saved"] = False
                 continue
+            sf = r["monitor"].get("spoken_forms") or {}
             base["scores"][r["key"]] = {"cer": r["cer"], "wer": r["wer"], "speaker_acc": r.get("speaker_acc"),
                                         "cer_content": r["monitor"]["cer_content"],
+                                        "spoken_recall": sf.get("recall"), "switch_rate": sf.get("switch_rate"),
                                         "env_version": env_version(), "utc": result["utc"]}
         base["env_version"] = env_version()
         write_json(BASELINE, base)

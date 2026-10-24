@@ -116,6 +116,17 @@ class IndicTranscribeEngine:
         self.num_beams = int(params.get("num_beams", 1))
         info = {"engine": self.id, "device": dev, "compute_type": str(dtype).replace("torch.", ""),
                 "model_sha256": source_info(self.id).get("model_sha256")}
+        if params.get("lora"):     # PLAN_v0.9 4.2: decoder LoRA trained by setup/train_it_lora.py, merged into the weights
+            from pathlib import Path
+
+            from peft import PeftModel
+
+            from ..common import TRX_HOME
+            lp = Path(params["lora"]) if Path(params["lora"]).is_absolute() else TRX_HOME / params["lora"]
+            if not (lp / "adapter_config.json").is_file():
+                raise TrxError("MODEL_MISSING", f"LoRA adapter not found: {lp}")
+            self.asr.model = PeftModel.from_pretrained(self.asr.model, str(lp)).merge_and_unload().eval()
+            info["lora"] = lp.name
         if fallback:
             info["fallback_reason"] = fallback
         return info

@@ -318,3 +318,41 @@ build = ["setup/make_indicvoices_slice.py", "--out", "toolchain/data/indicvoices
 files = [ { dest = "toolchain/data/indicvoices-mr-slice1/manifest.jsonl" }, { dest = "toolchain/data/indicvoices-mr-slice1/SOURCE.json" } ]
 extra_mb = 809
 note = "2 h of Marathi conversation + extempore clips with as-spoken text (verbatim) and standard spelling (normalized)"
+
+[[item]]
+id = "mms_1b_all_mar"
+phase = 9
+kind = "hf"
+licence = "CC-BY-NC-4.0 (tests only, never paid work)"
+repo = "facebook/mms-1b-all"
+revision = "3d33597edbdaaba14a8e858e2c8caa76e3cec0cd"
+dest = "toolchain/models/mms-1b-all"
+# PLAN_v0.9 download 3: the 1B CTC model + only the Marathi adapter (the repo holds ~1,100 adapters, ~10 GB).
+# On this PC the folder is a junction to D:\transcribe-env-models (USB).
+include = ["model.safetensors", "adapter.mar.safetensors", "config.json", "preprocessor_config.json", "special_tokens_map.json", "tokenizer_config.json", "vocab.json"]
+marker = "model.safetensors"
+files = [ { dest = "toolchain/models/mms-1b-all/model.safetensors", sha256 = "0f1d95ce43d27e03d5d8dd56c697c805460f967c793dd2cbec2e8e8012deda98", size = 3859521128 }, { dest = "toolchain/models/mms-1b-all/adapter.mar.safetensors", sha256 = "f72662520f13e5c43e6cee401d0fe8e4ff7e94a6bfc383bd4817b9937c76ef3f", size = 9387840 }, { dest = "toolchain/models/mms-1b-all/SOURCE.json" } ]
+
+[[item]]
+id = "indicwhisper_mr_archive"
+phase = 9
+kind = "zip"
+licence = "MIT (AI4Bharat Vistaar README: the licence applies to all the fine-tuned language models)"
+# PLAN_v0.9 download 2 (1,411,299,569 bytes; the store publishes no sha256: the first download's is pinned here).
+# toolchain/downloads and the extracted folder are junctions to the USB on this PC.
+url = "https://indicwhisper.objectstore.e2enetworks.net/marathi_models.zip"
+extract_to = "toolchain/models/indicwhisper-mr-hf"
+files = [ { dest = "toolchain/models/indicwhisper-mr-hf/.extracted" } ]
+extra_mb = 1411
+
+[[item]]
+id = "indicwhisper_mr_ct2"
+phase = 9
+kind = "build"
+licence = "MIT (AI4Bharat Vistaar)"
+downloads = []
+delete_downloads = false
+build = ["setup/convert_whisper_ct2.py", "--src", "toolchain/models/indicwhisper-mr-hf", "--out", "toolchain/models/indicwhisper-mr-ct2", "--source", "https://indicwhisper.objectstore.e2enetworks.net/marathi_models.zip (AI4Bharat Vistaar)", "--licence", "MIT"]
+files = [ { dest = "toolchain/models/indicwhisper-mr-ct2/model.bin" }, { dest = "toolchain/models/indicwhisper-mr-ct2/SOURCE.json" } ]
+extra_mb = 1500
+note = "needs indicwhisper_mr_archive first; CTranslate2 float16 copy for the faster-whisper engine"

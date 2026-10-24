@@ -35,6 +35,9 @@ HELP = """trx {v} — local, offline transcription environment
   trx explain <run-id>             plain-language account of a run
   trx eval [--engine ID] [--recipe ID] [--fixture ID] [--save-baseline]
                                    score the pipeline on evals/fixtures (maintainers)
+  trx screen build|run|report [--candidate ID] [--set v1]
+                                   PLAN_v0.9 screening harness: every candidate model on the same fixed
+                                   private lines, scored per challenge set (maintainers)
   trx doctor [--offline] [--brief] [--deep]
                                    readiness + offline proof (--deep: sha256 of every model)
   trx test                         unit tests of the deterministic parts (maintainers)
@@ -73,6 +76,10 @@ def build_parser() -> Parser:
     ev.add_argument("--fixture")
     ev.add_argument("--lang")
     ev.add_argument("--save-baseline", action="store_true")
+    sc = sub.add_parser("screen", add_help=False)
+    sc.add_argument("action", choices=["build", "run", "report"])
+    sc.add_argument("--candidate")
+    sc.add_argument("--set", default="v1")
     d = sub.add_parser("doctor", add_help=False)
     d.add_argument("--offline", action="store_true")
     d.add_argument("--brief", action="store_true")
@@ -185,6 +192,29 @@ def main(argv: list[str]) -> int:
             out(f"saved {res['file']} (+ .md; truth vs output per turn: evals/compare/, this PC only)" + (" and updated evals/baseline.json" if args.save_baseline else ""))
             return status_line(cmd, "OK" if not res["regressions"] else "EVAL_REGRESSION",
                                results=res["file"], regressions=len(res["regressions"]))
+
+        if cmd == "screen":
+            from pipeline import screen
+            if args.action == "build":
+                doc = screen.build(args.set)
+                c = doc["counts"]
+                out(f"screening set {args.set}: {c['lines']} lines, {c['audio_s']} s of audio; "
+                    + ", ".join(f"{t} {c[t]['lines']} lines ({c[t]['audio_s']} s)" for t in screen.TAGS)
+                    + f"; {c['spoken_slots']} spoken and {c['standard_slots']} standard slots")
+                return status_line(cmd, "OK", set=args.set, lines=c["lines"])
+            if args.action == "run":
+                if not args.candidate:
+                    raise TrxError("USAGE", "trx screen run needs --candidate ID (evals/screen_candidates.toml: "
+                                            + ", ".join(sorted(screen.candidates())) + ")")
+                r = screen.run(args.candidate, args.set)
+                out(screen.summary_line(r))
+                out(f"saved {r['file']} (texts: evals/screening/{args.set}/out/, evals/compare/; this PC only)")
+                return status_line(cmd, "OK", candidate=args.candidate, results=r["file"])
+            rows = screen.report(args.set)
+            for r in rows:
+                out(screen.summary_line(r))
+            out(f"saved evals/results/screen_{args.set}_summary.md ({len(rows)} candidate(s))")
+            return status_line(cmd, "OK", candidates=len(rows))
 
         if cmd == "test":
             import unittest

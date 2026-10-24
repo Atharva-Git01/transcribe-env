@@ -13,6 +13,8 @@ __pycache__/
 evals/runs/
 # truth vs output per turn: holds the words of the fixtures (private recordings): this PC only
 evals/compare/
+# the screening lines (PLAN_v0.9) are cut from private fixtures, and the candidates' outputs are their words: this PC only
+evals/screening/
 setup/logs/
 toolchain/downloads/
 # training data slices (setup/make_indicvoices_slice.py): large, rebuildable; on this PC they live on the USB (junctions)

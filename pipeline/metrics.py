@@ -33,9 +33,10 @@ def normalise(text: str) -> str:
 _FOLD = str.maketrans({"\u093c": None, "\u0901": "\u0902", "\u0945": "\u0947", "\u0949": "\u094b",
                        "\u0911": "\u0913", "\u0972": "\u0905"})
 _LOOSE = str.maketrans({"\u0940": "\u093f", "\u0942": "\u0941", "\u0908": "\u0907", "\u090a": "\u0909"})
-# "content" = loose + hesitation fillers removed + (Marathi) colloquial and standard spellings of the same word
-# folded together, so that what is left is misheard, missing or extra words (E39: on the owner's 20-minute call these
-# conventions were 14 % of the CER). Applied to BOTH sides; a diagnostic level, never the official CER.
+# "content" = loose + hesitation fillers removed + spoken forms of the variant list (library/spoken_variants, PLAN_v0.9
+# A2) replaced by their standard words + (Marathi) colloquial and standard spellings of the same word folded together,
+# so that what is left is misheard, missing or extra words (E39: on the owner's 20-minute call these conventions were
+# 14 % of the CER). Applied to BOTH sides; a diagnostic level, never the official CER.
 _FILLERS = re.compile(r"(?<!\S)(?:\u0905+|\u0905\u0902|\u0939\u0902+|\u0939\u093e\u0902|\u0939\u093e\u0901|\u0939\u092e\u094d\u092e*|\u0909\u0902+|\u0909\u092e\u094d\u092e*|uh+|um+|mm+|hmm+|mhm|er|ah)(?!\S)")
 _CONS = "\u0915\u0916\u0917\u0918\u0919\u091a\u091b\u091c\u091d\u091e\u091f\u0920\u0921\u0922\u0923\u0924\u0925\u0926\u0927\u0928\u092a\u092b\u092c\u092d\u092e\u092f\u0930\u0932\u0935\u0936\u0937\u0938\u0939\u0933"
 _MR_FOLDS = [
@@ -65,11 +66,16 @@ def normalise_level(text: str, lang: str = "", level: str = "strict") -> str:
     if level in ("loose", "content"):
         t = t.translate(_LOOSE)
     if level == "content":
-        t = _FILLERS.sub(" ", t)
+        t = _standard_words(_FILLERS.sub(" ", t), lang)
         if lang == "mr":
             for rx, rep in _MR_FOLDS:
                 t = rx.sub(rep, t)
     return _SPACE.sub(" ", t).strip()
+
+
+def _standard_words(t: str, lang: str) -> str:
+    from .spelling import standardise_loose
+    return standardise_loose(_SPACE.sub(" ", t).strip(), lang)
 
 
 def cer_level(reference: str, hypothesis: str, lang: str = "", level: str = "strict") -> float:
@@ -307,7 +313,7 @@ def _content_fold(text: str, lang: str, fillers: bool = True) -> str:
     """The "content" level; fillers=False keeps acknowledgements (so a lost "हं" turn can still be seen)."""
     if fillers:
         return normalise_level(text, lang, "content")
-    t = normalise_level(text, lang, "loose")
+    t = _standard_words(normalise_level(text, lang, "loose"), lang)
     if lang == "mr":
         for rx, rep in _MR_FOLDS:
             t = rx.sub(rep, t)

@@ -12,6 +12,7 @@ negation_stems = ["नाही", "नव्ह", "नस"]
 joined = [["नाही", "तर"]]
 not_negation = ["नाहीतर"]
 
-# A number word with a case ending is the same number ("हजार" + "च्या").
-number_endings = ["च्या", "चा", "ची", "चे", "ला", "ना", "ने", "नी", "त", "ात", "पर्यंत", "मध्ये", "वर", "शी", "च",
-                  "ांच्या", "ांचा", "ांची", "ांचे", "ांना", "ांनी"]
+# Case endings: a number word with one is the same number ("हजार" + "च्या"); the names list of review_list.md
+# (pipeline/names.py) takes them off before comparing spellings.
+number_endings = ["च्या", "चा", "ची", "चे", "चं", "ला", "ना", "ने", "नी", "त", "ात", "पर्यंत", "मध्ये", "वर", "शी", "च",
+                  "ांच्या", "ांचा", "ांची", "ांचे", "ांचं", "ांना", "ांनी"]

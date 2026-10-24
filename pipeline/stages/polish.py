@@ -205,10 +205,12 @@ def run(ctx: Ctx, params: dict) -> None:
         if any(q["track"] == s.get("track") and min(q["end"], s["end"]) - max(q["start"], s["start"]) > 0.1
                for q in ctx.quiet_regions):
             flags.append("quiet_speech: found only by the second, more sensitive speech check")
-        lex = _lexicon(lang) if out_cfg.get("spelling", "standard") == "standard" else None
+        # unknown words are looked up in the standard-spelling copy: a spoken form is not a misrecognition
+        lex = _lexicon(lang) if out_cfg.get("spelling", "standard") in ("standard", "as_spoken") else None
         if lex is not None:
             hot = set(rec.get("hotwords") or [])
-            unknown = [w for w in lm_tokens(s["text"]) if len(w) > 1 and not LATIN_OR_DIGIT.search(w)
+            unknown = [w for w in lm_tokens(s.get("text_standard", s["text"])) if len(w) > 1
+                       and not LATIN_OR_DIGIT.search(w)
                        and w not in hot and lex.count(w) < int(thr.get("lexicon_min_count", 3))]
             if unknown:
                 flags.append(f"unknown_words: {', '.join(dict.fromkeys(unknown))} (not in the {lang} lexicon)")

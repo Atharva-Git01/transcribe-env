@@ -3,6 +3,42 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.9.0 — 2026-10-24 (PLAN_v0.9 phase 1: measuring "as spoken", the screening harness, two transcript copies)
+**Eval (seeded; baseline saved with 0.9.0).** Every CER identical to 0.8.3/0.8.4 (no change of the text):
+
+| Fixture | CER | content CER | spoken forms written as spoken | standard words switched |
+|---|---|---|---|---|
+| 20-min call (as spoken) | 0.232 | 0.191 (0.192: listed spoken forms now fold) | 1/25 | 0/173 |
+| Pappa call (as spoken) | 0.361 | 0.327 | 0/1 | 0/4 |
+| FLEURS mr / hi / mr + music | 0.044 / 0.021 / 0.305 | 0.025 / 0.009 / 0.286 | — | — |
+| AMI meeting (en) | 0.249 | 0.227 | — | — |
+
+- **Spoken-variant list v1 (A2):** `library/spoken_variants/mr.toml` (+ `REVIEW_mr.md` for the owner, decision D3),
+  built by `setup/build_spoken_variants.py` from the IndicVoices slice (`normalized` vs `verbatim`): 177 pairs seen at
+  least twice (dental n 45, aspiration dropped 33, contraction 30, h dropped 25, …); 18 marked `ambiguous` because
+  the spoken form is also an ordinary word (E41).
+- **Spoken-form metric and gate:** `pipeline/spelling.py`. For truths written as spoken, `trx eval` reports how
+  many listed spoken forms the output wrote as spoken (recall) and how many standard words it switched; the gate
+  stops a change that drops recall by > 0.05 or switches > 5 % of the standard words. The content CER also folds
+  the listed spoken forms. Word blocks, not single words, are compared (E41).
+- **Screening harness:** `trx screen build|run|report` (`pipeline/screen.py`, `evals/screen_candidates.toml`):
+  193 fixed private lines (13.3 min of the two calls), challenge sets S (50 spoken + 241 standard slots), R (88
+  lines < 2 s), N (54), G (18); RTF, load time and peak GPU memory per candidate. Baseline Indic-Transcribe: content
+  CER 0.207, spoken forms 0/49, switched 0/241, R content CER 0.386, negations 10 of 63 wrong; GPU bf16, RTF 0.31.
+- **Two copies (A1):** `transcript.txt` (as spoken) and `transcript_standard.txt` (the recogniser's spelling);
+  segments keep `text_standard`. Until a spelling step is adopted they are the same and the header says so.
+  `config/defaults.toml [output] spelling = "as_spoken"`; unknown words are looked up in the standard copy.
+- **Names written several ways (B4a):** `review_list.md` lists rare words written in more than one way
+  (`pipeline/names.py`; case endings from `library/scoring/<lang>.toml`, now with "चं"). On the 20-minute call:
+  7 groups, among them a name in two spellings and English words spelled two ways.
+- Tests: 54 (spoken forms, screening scores, phoneme reader and judge, names, spelling header).
+- Ready for phase 2, not used by any run yet: a wav2vec 2.0 CTC engine (`wav2vec2_ctc_engine.py`: MMS with its
+  Marathi adapter, the phoneme recogniser), the phoneme judge (`pipeline/phonemes.py`, `judge = true` candidates in
+  `trx screen`), IndicConformer's encoder on the GPU when onnxruntime-gpu is present, Indic-Transcribe with a merged
+  decoder LoRA (`lora` engine setting), `setup/train_it_lora.py`, `setup/convert_whisper_ct2.py`, and setup items
+  for the approved downloads (MMS, IndicWhisper; `include` lists for Hugging Face items, `.extracted` markers).
+  Omnilingual ASR cannot be installed on Windows: `fairseq2n`, which it needs, has no Windows build (PLAN_v0.9 risk).
+
 ## 0.8.4 — 2026-10-24 (IndicVoices: as-spoken Marathi training data)
 **Eval.** Not run: no runtime code changed (one setup tool, one package, data on the USB). `trx doctor --offline`
 and `trx test` pass.

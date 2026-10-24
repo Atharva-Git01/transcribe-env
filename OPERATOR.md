@@ -26,6 +26,10 @@ Quote paths that contain spaces.
 3. Read the LAST line of the output (one JSON object). Find `name`.
 4. Look up `name` in `config/exit_codes.toml` (the line also contains `meaning` and `next`). Do what `next` says.
 5. If `name` is `OK`: open `runs/<run_id>/report.md` and `runs/<run_id>/out/review_list.md`.
+   - `out/transcript.txt` is the main transcript (words as spoken, the owner's convention); `out/transcript_standard.txt`
+     is the same in standard spelling, for searching and quoting. The header of each says whether they differ.
+   - `review_list.md` ends with names or rare words written in more than one way, when there are any: tell the
+     owner, who decides the right spelling. The transcript is never changed for them.
    - Verdict `PASS`: deliver `runs/<run_id>/out/`.
    - Verdict `REVIEW`: deliver `out/` AND tell the owner which lines are in `review_list.md` (timestamps included).
    - Verdict `FAIL`: deliver nothing; report the reasons from `report.md`.

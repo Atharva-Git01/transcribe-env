@@ -493,3 +493,22 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   −0.6 to −1.1, is what right words get, and no scored long line goes below −2. Those stay the reviewer's job.
 - **Rule:** a confidence flag needs a threshold measured for its engine. Whisper's −1.0 means nothing for
   Indic-Transcribe's token scores; keep `avg_logprob` for Whisper and `token_logprob_mean` for Indic-Transcribe.
+
+## E41 — Counting spoken forms: compare word blocks, never single words (2026-10-24, 0.9.0)
+- **Seen:** the first screening set (PLAN_v0.9) counted 88 "spoken slots" on the owner's two calls, where the hand
+  check of 2026-10-23 had found 54. The extra ones were not spoken forms:
+  - a word the owner wrote apart and the baseline together ("X la" / "Xla"): each half was compared with the whole;
+  - fillers spelled differently ("hm" / "hmm"): both fold away at the content level, so any filler matched any filler;
+  - a nasal consonant + virama against an anusvara: the same sound.
+- **Fix:** truth and output are matched in blocks that hold the same words at the content level (`spelling.match_blocks`:
+  a run written apart on one side and together on the other is one block; a bare "aahe" or a filler next to a word
+  joins it), and a block is compared as a whole. Blocks of fillers only are not slots. `spelling.ortho` folds every
+  same-sound difference: spacing, short/long i and u, the final anusvara, nasal consonant + virama before a consonant,
+  nukta, chandrabindu. Result: 50 spoken slots, 241 standard slots.
+- **Also:** some spoken forms are ordinary words of their own: IndicVoices writes "kay" for "kahi", and "kay" means
+  "what". Folding such a pair would hide a real meaning error, so `setup/build_spoken_variants.py` marks it
+  `ambiguous` when the spoken form is written at least 5 % as often as its standard form in IndicCorp, or is a single
+  letter (18 of 177 pairs). Only `yes` pairs fold or count.
+- **Rule:** spelling is judged on matched word blocks with every same-sound difference folded away; a spoken form that
+  is also a word is never folded.
+

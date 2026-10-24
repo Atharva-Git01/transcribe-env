@@ -116,4 +116,7 @@ def make(engine_id: str):
     if engine_id.startswith("indic_transcribe"):
         from .indic_transcribe_engine import IndicTranscribeEngine
         return IndicTranscribeEngine(engine_id)
+    if engine_id.startswith(("mms_", "phoneme_")):        # PLAN_v0.9 candidates (wav2vec 2.0 CTC, transformers)
+        from .wav2vec2_ctc_engine import Wav2Vec2CtcEngine
+        return Wav2Vec2CtcEngine(engine_id)
     raise TrxError("STAGE_NOT_INSTALLED", f"no adapter for engine '{engine_id}'")

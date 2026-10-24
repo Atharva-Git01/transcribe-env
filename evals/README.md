@@ -31,8 +31,15 @@ change of spelling style in the output is neither a regression nor a gain. Both 
 
 ### Failure monitor: HOW it went wrong (E39; the `how:` line under each fixture, and in results/compare)
 - **content CER:** CER after folding spelling conventions (colloquial vs standard Marathi forms, word-final
-  anusvara, s/sh, n/retroflex n, "-ye" contractions) and hesitation fillers on BOTH sides. What is left is misheard,
-  missing or extra words. On the owner's 20-minute call the conventions were 14 % of the CER.
+  anusvara, s/sh, n/retroflex n, "-ye" contractions), the spoken forms of `library/spoken_variants/<lang>.toml`
+  (0.9.0) and hesitation fillers on BOTH sides. What is left is misheard, missing or extra words. On the owner's
+  20-minute call the conventions were 14 % of the CER.
+- **spoken forms** (truths written as spoken, 0.9.0, `pipeline/spelling.py`): of the truth words in a listed spoken
+  form, how many the output wrote that way too (**spoken-form recall**), and of the truth words in a standard form
+  that has a listed spoken variant, how many the output switched to a spoken form (**wrong switches**). Words the
+  output does not have at all are left to the content CER. The gate: recall may not drop by more than 0.05 against
+  the baseline, and at most 5 % of the standard words may be switched (PLAN_v0.9). Word by word, in
+  `compare/` only.
 - **turn outcomes:** each truth turn is `correct` (≥ 85 % of its characters), `misheard`, `lost`,
   `lost_backchannel` (an acknowledgement that vanished), `merged` (its words are in a line of a neighbouring turn of
   the same speaker: the reply between them was lost — the old "missing turns" counted this as missing),
@@ -53,6 +60,19 @@ change of spelling style in the output is neither a regression nor a gain. Both 
   `manifest.json` = id, original name, sha256, length). Git-ignored. `drafts/` holds the environment's transcript
   of each (`python setup/make_drafts.py --manifest evals/test_audio/manifest.json`); once the owner has corrected a
   draft, `setup/make_fixture.py` turns it into a fixture that `trx eval` scores.
+
+## Screening harness (PLAN_v0.9, `trx screen`, `pipeline/screen.py`)
+Every candidate model is decoded on the same fixed lines, one model at a time on the GPU, in minutes:
+- `trx screen build` cuts the lines once into `screening/v1/` (git-ignored: private audio and words): the scored
+  part of every fixture written as spoken (the 20-minute call's 12 minutes and the Pappa call: 193 lines, 13.3 min),
+  cut where the baseline transcript put its lines. The set is frozen.
+- `trx screen run --candidate <id>` (candidates: `screen_candidates.toml`) scores four challenge sets: **S** spelling
+  (50 spoken slots: words the owner wrote as spoken where the baseline wrote them standard; 241 standard slots:
+  words both wrote the same way that have a known spoken variant) → recall and switches; **R** lines under 2 s →
+  content CER and words not in the truth; **N** lines with negations or numbers → their errors; **G** the rest →
+  content and strict CER. Also the load time, real-time factor and peak GPU memory.
+- `trx screen report` writes `results/screen_<set>_summary.md` (numbers only); per line truth vs output:
+  `compare/screen_<set>_<candidate>.md` (this PC only).
 
 ## Accepting a change
 - The target fixture/recipe must improve.

@@ -147,15 +147,46 @@ size_mb = 4891
 note = "Canary FastConformer+Transformer, 1.2B, 25+ languages incl. Indian English, code-mixed, native script. Self-hosting free; hosting for others needs Bodhan AI's written approval; credit 'Built with Indic-Transcribe-core from Bodhan AI / AI4Bharat'. CPU fp32 here (torch CPU build)."
 
 [[component]]
-id = "indicwhisper"
+id = "faster_whisper_indicwhisper_mr"
 kind = "model"
-phase = 99
-status = "excluded"
-licence = "not stated"
-commercial_ok = "no"
-note = "EXCLUDED until a licence is published (Vistaar, reported Marathi avg WER 18.2%)"
+phase = 9
+status = "candidate"
+licence = "MIT (AI4Bharat Vistaar README: the licence applies to all the fine-tuned language models)"
+commercial_ok = "yes"
+path = "toolchain/models/indicwhisper-mr-ct2"
+marker = "model.bin"
+source = "https://indicwhisper.objectstore.e2enetworks.net/marathi_models.zip (AI4Bharat Vistaar), converted to CTranslate2 by setup/convert_whisper_ct2.py"
+size_mb = 1500
+note = "PLAN_v0.9 screening candidate: Whisper fine-tuned on Indian speech (Vistaar, reported Marathi WER 18.2 %). Runs through the faster-whisper engine."
 
-# ---------------------------------------------------------------- phase 3 (local LLM cleanup)
+[[component]]
+id = "mms_1b_all_mar"
+kind = "model"
+phase = 9
+status = "candidate"
+licence = "CC-BY-NC-4.0"
+commercial_ok = "no"
+path = "toolchain/models/mms-1b-all"
+marker = "model.safetensors"
+target_lang = "mar"
+source = "https://huggingface.co/facebook/mms-1b-all (revision 3d33597e)"
+size_mb = 3870
+note = "PLAN_v0.9 screening candidate: Meta MMS 1B CTC + its Marathi adapter. Non-commercial: tests only, never for paid work; the base for small-data adapter training."
+
+[[component]]
+id = "phoneme_xlsr53_espeak"
+kind = "model"
+phase = 9
+status = "candidate"
+licence = "Apache-2.0"
+commercial_ok = "yes"
+path = "toolchain/models/phoneme-xlsr53-espeak"
+marker = "pytorch_model.bin"
+phonemes = true
+source = "https://huggingface.co/facebook/wav2vec2-xlsr-53-espeak-cv-ft (revision 2c733782)"
+size_mb = 1264
+note = "PLAN_v0.9: multilingual phoneme recogniser (IPA), the acoustic judge of spellings; never a transcriber. Weights are a pickle loaded with weights_only (no code runs)."
+
 [[component]]
 id = "llama_cpp_vulkan"
 kind = "binary"

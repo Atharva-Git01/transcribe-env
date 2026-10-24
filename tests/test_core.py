@@ -562,6 +562,87 @@ class TestEngineCache(unittest.TestCase):
         self.assertEqual(acoustic_decision(weak, "indic_transcribe_core")["decision"], "mr")   # priority language
 
 
+class TestSpokenForms(unittest.TestCase):
+    # PLAN_v0.9: the spoken-variant list and the spoken-form metric (invented sentences, never words of a case)
+    def test_variant_list_rows(self):
+        import tomllib
+        rows = tomllib.loads((HOME / "library" / "spoken_variants" / "mr.toml").read_text(encoding="utf-8"))["pairs"]
+        self.assertTrue(rows)
+        for r in rows:
+            self.assertEqual(len(r), 6, r)
+            self.assertIn(r[5], ("yes", "ambiguous", "not here"))
+            self.assertNotEqual(r[0], r[1])
+
+    def test_recall_and_switches(self):
+        from pipeline.spelling import spoken_forms
+        truth = "मला नाय माहिती पन तुम्ही या"
+        std = spoken_forms(truth, "मला नाही माहिती पण तुम्ही या", "mr")
+        self.assertEqual((std["hits"], std["misses"], std["kept"], std["switched"]), (0, 2, 1, 0))
+        spoken = spoken_forms(truth, "मला नाय माहिती पन तुमी या", "mr")
+        self.assertEqual((spoken["recall"], spoken["switch_rate"]), (1.0, 1.0))
+        self.assertEqual(spoken_forms("मला नाय माहिती", "मला माहिती", "mr")["spoken_unmatched"], 1)
+
+    def test_contractions_spacing_and_same_sound(self):
+        from pipeline.spelling import ortho, spoken_forms
+        self.assertEqual(spoken_forms("हो ठीके उद्या भेटू", "हो ठीक आहे उद्या भेटू", "mr")["misses"], 1)
+        self.assertEqual(spoken_forms("हो ठीक आहे उद्या भेटू", "हो ठीके उद्या भेटू", "mr")["switched"], 1)
+        self.assertEqual(ortho("सम्बन्ध", "mr"), ortho("संबंध", "mr"))      # nasal consonant = anusvara
+        self.assertEqual(ortho("गाडी ला", "mr"), ortho("गाडीला", "mr"))      # written apart or together
+        self.assertEqual(ortho("दिली", "mr"), ortho("दीली", "mr"))           # short or long i
+
+    def test_content_level_folds_listed_spoken_forms(self):
+        from pipeline.metrics import cer_level
+        self.assertEqual(cer_level("मला नाय माहिती पन ठीके", "मला नाही माहिती पण ठीक आहे", "mr", "content"), 0.0)
+
+    def test_screening_scores(self):
+        from pipeline.screen import score
+        lines = [{"id": "a", "fixture": "f", "language": "mr", "duration": 3.0, "text": "मला नाय माहिती",
+                  "slots": [{"i": 1, "n": 1, "kind": "spoken", "truth": "नाय", "standard": "नाही"}], "tags": ["S", "N"]},
+                 {"id": "b", "fixture": "f", "language": "mr", "duration": 1.0, "text": "हो", "slots": [],
+                  "tags": ["R"]}]
+        r = score(lines, {"a": "मला नाय माहिती", "b": "हो बोला"})
+        self.assertEqual((r["S"]["hits"], r["S"]["misses"], r["S"]["recall"]), (1, 0, 1.0))
+        self.assertEqual(r["R"]["words_not_in_truth"], 1)
+        self.assertEqual((r["N"]["negations"], r["N"]["negation_errors"]), (1, 0))
+        r = score(lines, {"a": "मला नाही माहिती", "b": "हो"})
+        self.assertEqual((r["S"]["recall"], r["R"]["words_not_in_truth"]), (0.0, 0))
+
+
+class TestPhonemeJudge(unittest.TestCase):
+    # PLAN_v0.9 A3: Devanagari and the recogniser's IPA in the same coarse sound classes (invented examples)
+    def test_reader(self):
+        from pipeline.phonemes import read_devanagari, read_ipa
+        self.assertEqual(read_devanagari("नाही"), ["n", "a", "h", "i"])
+        self.assertEqual(read_devanagari("नाय"), ["n", "a", "y"])
+        self.assertEqual(read_devanagari("घर"), ["g", "H", "@", "r"])          # aspiration; final schwa silent
+        self.assertEqual(read_ipa("n aː h iː"), ["n", "a", "h", "i"])
+        self.assertEqual(read_ipa("ɡʱ ə r"), ["g", "H", "@", "r"])
+
+    def test_judge_picks_the_spelling_that_was_heard_and_keeps_ties(self):
+        from pipeline.phonemes import judge
+        self.assertEqual(judge("m ə l aː n aː j m aː h i t i", ["मला नाही माहिती", "मला नाय माहिती"])[0], 1)
+        self.assertEqual(judge("m ə l aː n aː h iː", ["मला नाही", "मला नाय"])[0], 0)
+        self.assertIsNone(judge("", ["मला नाही", "मला नाहि"])[0])            # same sounds: a tie, no change
+
+
+class TestStandardCopyAndNames(unittest.TestCase):
+    def test_spelling_line(self):
+        from pipeline.stages.export import _spelling_line
+        self.assertIn("no as-spoken spelling step", _spelling_line("as_spoken", 0, None))
+        self.assertIn("3 line(s) differ", _spelling_line("as_spoken", 3, "spelling transfer"))
+
+    def test_rare_names_written_several_ways(self):
+        from pipeline.names import written_ways
+        common = {"फोन", "केला", "आला", "येईल", "उद्या"}
+        segs = [{"start": 1.0, "text": "सुनीलला फोन केला"}, {"start": 5.0, "text": "सुनिल आला"},
+                {"start": 9.0, "text": "उद्या सुनील येईल"}, {"start": 12.0, "text": "मंगेश आला"}]
+        groups = written_ways(segs, "mr", lambda w: 10_000 if w in common else 0, hotwords=["सुनील"], endings=("ला",))
+        self.assertEqual(len(groups), 1)
+        self.assertEqual([(st, n) for st, n, _ in groups[0]["spellings"]], [("सुनील", 2), ("सुनिल", 1)])
+        self.assertEqual(groups[0]["listed"], "सुनील")
+        self.assertEqual(written_ways(segs, "mr", lambda w: 10_000), [])   # common words: never a names list
+
+
 class TestOfflineGuard(unittest.TestCase):
     def test_blocks_public_hosts(self):
         offline.install()

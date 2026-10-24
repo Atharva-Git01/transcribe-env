@@ -122,9 +122,12 @@ def install(phase: int) -> None:
             target = HOME / it["extract_to"]
             target.mkdir(parents=True, exist_ok=True)
             if kind == "zip":
-                zipfile.ZipFile(arc).extractall(target)
+                zipfile.ZipFile(arc).extractall(target)    # zipfile drops absolute paths and ".." parts
             else:
                 tarfile.open(arc).extractall(target, filter="data")
+            # what was extracted from which archive (an item may list this marker as its installed file)
+            (target / ".extracted").write_text(json.dumps({"archive": arc.name, "sha256": sha256(arc),
+                                                           "size": arc.stat().st_size}), encoding="utf-8")
         elif kind == "hardlink":
             for f in it["files"]:
                 src = Path(os.path.expandvars(f["from"]))
@@ -139,7 +142,7 @@ def install(phase: int) -> None:
             from huggingface_hub import snapshot_download
             dest = HOME / it["dest"]
             snapshot_download(it["repo"], revision=it["revision"], local_dir=str(dest),
-                              ignore_patterns=it.get("exclude") or None)
+                              allow_patterns=it.get("include") or None, ignore_patterns=it.get("exclude") or None)
             files = {}
             for f in sorted(p for p in dest.rglob("*") if p.is_file() and ".cache" not in p.parts and p.name != "SOURCE.json"):
                 files[f.relative_to(dest).as_posix()] = {"sha256": sha256(f), "size": f.stat().st_size}

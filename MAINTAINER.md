@@ -58,6 +58,17 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 - Tried and rejected (2026-10-22): re-decoding each line on its own to get 5 alternatives and letting the LM choose.
   The line loses its context, and the alternatives were worse (CER 0.62 vs 0.53).
 
+## As-spoken spelling and screening (PLAN_v0.9)
+- The owner's transcripts are written as spoken (`spelling = "as_spoken"` in truth.json). `trx eval` judges them by
+  the content CER and by the spoken forms (`pipeline/spelling.py`: recall, wrong switches; library list
+  `library/spoken_variants/<lang>.toml`). A spelling change must raise the recall and keep switches ≤ 5 %.
+- Candidate models are compared with `trx screen` (evals/README.md) before anything goes near `trx eval`: the same
+  fixed private lines, one model at a time on the GPU. A new candidate = an engine adapter (as for a new engine,
+  below) + one table in `evals/screen_candidates.toml`.
+- Outputs: `transcript.txt` (as spoken) + `transcript_standard.txt` (the recogniser's spelling); every segment keeps
+  both (`text`, `text_standard`). A spelling step must set `ctx.metrics["spelling_step"]` and log every changed
+  word in decisions.json.
+
 ## Training data (PLAN_v0.9, phase 3)
 - `toolchain/data/indicvoices-mr-slice1/` (a junction to `D:\transcribe-env-data`): IndicVoices Marathi clips as
   `audio/*.flac` + `manifest.jsonl`, made by `setup/make_indicvoices_slice.py` (pinned revision, rules and credit
