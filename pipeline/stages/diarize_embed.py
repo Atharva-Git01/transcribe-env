@@ -1,7 +1,9 @@
 """Diarization by speaker embeddings on sliding windows (mode "embed_cluster", E19).
 
 1. Windows of `window_s` (1.0 s) every `hop_s` (0.25 s) inside the VAD speech regions.
-2. A speaker embedding per window: 3D-Speaker ERes2NetV2 (Apache-2.0) through sherpa-onnx (no torch).
+2. A speaker embedding per window: 3D-Speaker ERes2NetV2 (Apache-2.0). GPU first (PLAN_v0.9 B6): with
+   onnxruntime-gpu the windows run in batches on the GPU, on features computed exactly as sherpa-onnx computes them
+   (`_fbank`, identical to 0.0002); otherwise one by one through sherpa-onnx on the CPU, as before.
 3. Clustering (cosine k-means, farthest-point start):
    - `num_speakers` > 0: exactly that many (phone calls: 2 parties);
    - 0: estimated by splitting clusters while the two halves are less similar than `split_cosine` (at most
@@ -49,7 +51,76 @@ def windows(speech, win: float, hop: float, min_len: float = 0.5) -> list[tuple[
     return out
 
 
-def embed(audio: np.ndarray, wins, sr: int = 16000) -> np.ndarray:
+_MEL: dict = {}
+
+
+def _fbank(x: np.ndarray) -> np.ndarray:
+    """The model's input for one window, exactly as sherpa-onnx computes it (Kaldi fbank as configured by sherpa for
+    this model): 25 ms frames every 10 ms, centred, edges reflected (snip_edges = false), DC removed, pre-emphasis
+    0.97, Povey window, 512-point power spectrum, 80 mel bands 20-7600 Hz, log; then minus the mean over the
+    window's frames (the model's `feature_normalize_type` = global-mean)."""
+    if "W" not in _MEL:
+        mel = lambda f: 1127.0 * np.log(1.0 + f / 700.0)  # noqa: E731
+        lo, hi = mel(20.0), mel(7600.0)
+        d = (hi - lo) / 81
+        m = mel((16000 / 512) * np.arange(256))
+        W = np.zeros((80, 256))
+        for b in range(80):
+            left, c, r = lo + b * d, lo + (b + 1) * d, lo + (b + 2) * d
+            W[b] = np.where((m > left) & (m < r), np.minimum((m - left) / (c - left), (r - m) / (r - c)), 0.0)
+        _MEL["W"] = W.T
+        _MEL["win"] = (0.5 - 0.5 * np.cos(2 * np.pi * np.arange(400) / 399)) ** 0.85
+    x = x.astype(np.float64)
+    n = len(x)
+    idx = (160 * np.arange((n + 80) // 160) - 120)[:, None] + np.arange(400)[None, :]
+    idx = np.where(idx < 0, -idx - 1, idx)
+    idx = np.where(idx >= n, 2 * n - 1 - idx, idx)
+    fr = x[idx]
+    fr = fr - fr.mean(1, keepdims=True)
+    pre = fr.copy()
+    pre[:, 1:] = fr[:, 1:] - 0.97 * fr[:, :-1]
+    pre[:, 0] = fr[:, 0] - 0.97 * fr[:, 0]
+    spec = np.abs(np.fft.rfft(pre * _MEL["win"], 512)) ** 2
+    f = np.log(np.maximum(spec[:, :256] @ _MEL["W"], np.finfo(np.float32).eps))
+    return (f - f.mean(0, keepdims=True)).astype(np.float32)
+
+
+def _gpu_session():
+    """An onnxruntime CUDA session of the model, or None (no onnxruntime-gpu, no usable GPU, or the CPU forced)."""
+    from ..common import load_config
+    if load_config("defaults")["runtime"].get("device", "auto") == "cpu":
+        return None
+    try:
+        import onnxruntime as ort
+        if "CUDAExecutionProvider" not in ort.get_available_providers():
+            return None
+        from .. import gpu
+        gpu.prepare()
+        opts = ort.SessionOptions()
+        opts.log_severity_level = 3
+        sess = ort.InferenceSession(str(MODEL), sess_options=opts,
+                                    providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+        return sess if sess.get_providers()[0] == "CUDAExecutionProvider" else None
+    except Exception:  # noqa: BLE001 — the CPU path is always there
+        return None
+
+
+def embed(audio: np.ndarray, wins, sr: int = 16000, batch: int = 32) -> np.ndarray:
+    """Unit-length embeddings of the windows; on the GPU in batches of equal-length windows when possible."""
+    sess = _gpu_session() if sr == 16000 else None
+    if sess is not None:
+        feats = [_fbank(audio[int(s * sr):int(e * sr)]) for s, e in wins]
+        X = np.zeros((len(wins), 192))
+        by_len: dict = {}
+        for i, f in enumerate(feats):
+            by_len.setdefault(f.shape[0], []).append(i)
+        for idxs in by_len.values():
+            for k in range(0, len(idxs), batch):
+                part = idxs[k:k + batch]
+                X[part] = sess.run(None, {"x": np.stack([feats[i] for i in part])})[0]
+        embed.last_device = "cuda"
+        return X / (np.linalg.norm(X, axis=1, keepdims=True) + 1e-9)
+    embed.last_device = "cpu"
     import sherpa_onnx
     ext = sherpa_onnx.SpeakerEmbeddingExtractor(sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=str(MODEL),
                                                                                           num_threads=4))
@@ -183,6 +254,7 @@ def diarize(audio: np.ndarray, speech, params: dict) -> tuple[list[dict], dict]:
     if len(wins) < 2:
         return ([{"start": a, "end": b, "speaker": 0} for a, b in speech], dict(info, speakers=1, how="too little speech"))
     X = embed(audio, wins)
+    info["embeddings_on"] = getattr(embed, "last_device", "cpu")
     k = int(params.get("num_speakers", 0))
     if k > 0:
         lab, C = kmeans(X, min(k, len(X)))

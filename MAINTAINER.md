@@ -77,6 +77,13 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
   is flagged (soft `meaning_check`) only where the two readings differ on a negation or a number. The eval's `how:`
   line reports how many lines with a wrong negation/number it marked.
 
+## GPU for the helpers (PLAN_v0.9 B6)
+- IndicConformer (fallback engine, meaning check): its encoder runs on the GPU with `onnxruntime-gpu` 1.26.0 — the
+  last CUDA 12 build; 1.27+ need CUDA 13, which would clash with PyTorch's CUDA 12 cuDNN in the same process (E42).
+- Speaker embeddings (diarization): batched on the GPU through onnxruntime on features that reproduce sherpa-onnx's
+  exactly (`diarize_embed._fbank`); sherpa-onnx on the CPU is the fallback. Same speakers on every fixture, 7× faster.
+- Silero VAD stays on the CPU: it takes ~6 s for a 20-minute call.
+
 ## Training data (PLAN_v0.9, phase 3)
 - `toolchain/data/indicvoices-mr-slice1/` (a junction to `D:\transcribe-env-data`): IndicVoices Marathi clips as
   `audio/*.flac` + `manifest.jsonl`, made by `setup/make_indicvoices_slice.py` (pinned revision, rules and credit

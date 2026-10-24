@@ -3,6 +3,18 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.9.3 — 2026-10-24 (PLAN_v0.9 B6: speaker embeddings on the GPU)
+**Eval (seeded).** Every fixture identical to 0.9.2 — CER, speaker accuracy and every turn outcome (Pappa 0.361 /
+0.966, 20-min call 0.232 / 0.987, AMI 0.249 / 0.887, FLEURS mr / hi / + music 0.044 / 0.021 / 0.305, RTF 1.3-1.4 → 1.0). Faster: diarization of the 20-min call
+313 s → 45 s (run RTF 0.81 → 0.57, as fast as before the meaning check), AMI RTF 1.27 → 1.02.
+
+- `pipeline/stages/diarize_embed.py`: with onnxruntime-gpu the speaker-embedding windows run in batches on the GPU.
+  The model's input is computed by `_fbank`, which reproduces sherpa-onnx's features exactly (Kaldi fbank with
+  centred frames and reflected edges, 20–7600 Hz: identical to 0.0002); the embeddings match sherpa's to cosine
+  0.999998. Without a usable GPU (or with `[runtime] device = "cpu"`) sherpa-onnx computes them on the CPU as
+  before; diarization.json and decisions.json say which (`embeddings_on`).
+- Threads on the CPU were tried first: identical but only 1.4× faster.
+
 ## 0.9.2 — 2026-10-24 (PLAN_v0.9 B3: the meaning check is on for phone calls)
 **Eval (seeded; baseline saved).** Text unchanged: Pappa CER 0.361, 20-min call 0.232 (content 0.191), as before.
 
