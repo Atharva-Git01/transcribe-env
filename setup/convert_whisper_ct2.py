@@ -16,10 +16,12 @@ import hashlib
 import json
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 HOME = Path(__file__).resolve().parents[1]
+NEEDED = ("config.json", "generation_config.json", "pytorch_model.bin", "model.safetensors", "preprocessor_config.json",
+          "tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt", "added_tokens.json",
+          "special_tokens_map.json", "normalizer.json")
 
 
 def sha256(p: Path) -> str:
@@ -43,19 +45,26 @@ def main() -> int:
     if not found:
         raise SystemExit(f"no config.json under {src}")
     ckpt = found[0].parent
-    if out.exists() and any(out.iterdir()):
+    if out.exists() and any(p for p in out.iterdir() if not p.name.startswith(".")):
         raise SystemExit(f"{out} is not empty (nothing was changed)")
     from ctranslate2.converters import TransformersConverter
     from transformers import WhisperTokenizerFast
-    with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp) / "ckpt"
-        shutil.copytree(ckpt, work)
-        if not (work / "tokenizer.json").is_file():
-            WhisperTokenizerFast.from_pretrained(str(work)).save_pretrained(str(work))
-        copy = [n for n in ("tokenizer.json", "preprocessor_config.json") if (work / n).is_file()]
-        out.mkdir(parents=True, exist_ok=True)
-        TransformersConverter(str(work), copy_files=copy, load_as_float16=True).convert(
-            str(out), quantization="float16", force=True)
+    # staging folders inside --out: --out may be a junction (to the USB), which the converter must not delete
+    out.mkdir(parents=True, exist_ok=True)
+    work, staged = out / ".checkpoint", out / ".converted"
+    work.mkdir(exist_ok=True)
+    for name in NEEDED:                       # only what the converter reads (no optimizer or RNG states)
+        if (ckpt / name).is_file():
+            shutil.copy2(ckpt / name, work / name)
+    if not (work / "tokenizer.json").is_file():
+        WhisperTokenizerFast.from_pretrained(str(work)).save_pretrained(str(work))
+    copy = [n for n in ("tokenizer.json", "preprocessor_config.json") if (work / n).is_file()]
+    TransformersConverter(str(work), copy_files=copy, load_as_float16=True).convert(
+        str(staged), quantization="float16", force=True)
+    for f in staged.iterdir():
+        f.replace(out / f.name)
+    shutil.rmtree(staged)
+    shutil.rmtree(work)
     files = {p.name: {"sha256": sha256(p), "size": p.stat().st_size} for p in sorted(out.iterdir()) if p.is_file()}
     (out / "SOURCE.json").write_text(json.dumps({
         "id": out.name, "licence": a.licence, "source": a.source, "converted_from": str(ckpt.relative_to(src.parent)),

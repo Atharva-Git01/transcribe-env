@@ -5,8 +5,11 @@
 
 Setup-time tool, offline, on the GPU (owner's rule). The encoder stays frozen: its output for every training clip is
 computed once and kept, so each pass runs only the decoder — minutes per run, little GPU memory. Training data:
-- the IndicVoices slice: `verbatim` (as spoken) is the target; its wide-band clips are first squeezed to the phone
-  band (300-3400 Hz, 8 kHz G.711 mu-law and back) so that they sound like calls;
+- the IndicVoices slice; its wide-band clips are first squeezed to the phone band (300-3400 Hz, 8 kHz G.711 mu-law
+  and back) so that they sound like calls. Target (--targets): "controlled" (default) = the standard text
+  (`normalized`) with only the words whose spoken form in `verbatim` is a listed pair of the spoken-variant list
+  (use = "yes"); "verbatim" = the transcribers' whole as-spoken text. Run v1 used "verbatim" and learned the
+  transcribers' habits too, e.g. "nahi" -> "na" (a different word): negation errors on the call 10 -> 22 (E42);
 - the owner's as-spoken lines of the screening set, EXCEPT those of --test-fixture: fold by recording, never train
   and test on the same recording. They are repeated --owner-weight times (they are few and closest to the calls).
 5 % of the IndicVoices clips are held out to watch the loss. Writes the adapter (peft) and SOURCE.json (data, fold,
@@ -33,6 +36,7 @@ sys.path.insert(0, str(HOME))
 from pipeline.audio import decode_mono, read_wav  # noqa: E402
 
 TARGETS = ["query_net", "key_net", "value_net", "out_projection"]   # decoder attention only (the encoder's are linear_*)
+CACHE_VERSION = 1          # bump when the clip preparation changes (phone band, decoding)
 WIDE_BAND = 0.005          # share of energy above 4 kHz from which a clip counts as wide band (calls: ~0)
 
 
@@ -52,25 +56,57 @@ def phone_band(x: np.ndarray) -> np.ndarray:
     return np.frombuffer(b, dtype=np.float32).copy()
 
 
-def examples(slice_dir: Path, set_dir: Path, test_fixture: str, owner_weight: int, seed: int):
+def controlled(normalized: str, verbatim: str, lang: str = "mr") -> str:
+    """The standard text with only the listed spoken forms of the verbatim text put in (pairs of the spoken-variant
+    list with use = "yes"): a dropped or reduced word the list does not hold keeps its standard form."""
+    import difflib
+
+    from pipeline.metrics import normalise, normalise_level
+    from pipeline.spelling import ortho, variants
+    v = variants(lang)
+    n, w = normalise(normalized).split(), normalise(verbatim).split()
+    out = list(n)
+
+    def listed(std, spk):
+        o = ortho(spk, lang)
+        if " " in std:
+            return o in v["standard_phrases"].get(tuple(ortho(x, lang) for x in std.split()), set())
+        return o in v["standard_words"].get(ortho(std, lang), set())
+    loose = [normalise_level(x, lang, "loose") for x in n], [normalise_level(x, lang, "loose") for x in w]
+    for op, i1, i2, j1, j2 in reversed(difflib.SequenceMatcher(None, *loose, autojunk=False).get_opcodes()):
+        if op != "replace":
+            continue
+        if i2 - i1 == j2 - j1:
+            for k in range(i2 - i1):
+                if listed(n[i1 + k], w[j1 + k]):
+                    out[i1 + k] = w[j1 + k]
+        elif (i2 - i1, j2 - j1) == (2, 1) and listed(" ".join(n[i1:i2]), w[j1]):
+            out[i1:i2] = [w[j1]]
+    return " ".join(out)
+
+
+def examples(slice_dir: Path, set_dir: Path, test_fixture: str, owner_weight: int, seed: int, targets: str):
     """[(audio, text, source)] for training and the held-out IndicVoices clips, plus counts."""
     rnd = random.Random(seed)
     iv = [json.loads(x) for x in (slice_dir / "manifest.jsonl").read_text(encoding="utf-8").splitlines()]
     rnd.shuffle(iv)
     n_val = max(20, len(iv) // 20)
-    train, val, squeezed = [], [], 0
+    train, val, squeezed, changed = [], [], 0, 0
     for k, m in enumerate(iv):
         x = decode_mono(slice_dir / m["audio"])
         if high_band_share(x) > WIDE_BAND:
             x = phone_band(x)
             squeezed += 1
-        (val if k < n_val else train).append((x, m["verbatim"], "indicvoices"))
+        text = m["verbatim"] if targets == "verbatim" else controlled(m["normalized"], m["verbatim"])
+        changed += text != m["normalized"]
+        (val if k < n_val else train).append((x, text, "indicvoices", m["id"]))
     lines = json.loads((set_dir / "lines.json").read_text(encoding="utf-8"))["segments"]
     own = [x for x in lines if x["fixture"] != test_fixture]
     for x in own:
         audio, _ = read_wav(set_dir / "audio" / f"{x['id']}.wav")
-        train += [(audio, x["text"], "owner")] * owner_weight
-    counts = {"indicvoices_train": len(iv) - n_val, "indicvoices_heldout": n_val, "phone_band_squeezed": squeezed,
+        train += [(audio, x["text"], "owner", x["id"])] * owner_weight
+    counts = {"targets": targets, "indicvoices_with_spoken_forms": changed,
+              "indicvoices_train": len(iv) - n_val, "indicvoices_heldout": n_val, "phone_band_squeezed": squeezed,
               "owner_lines": len(own), "owner_weight": owner_weight,
               "owner_fixtures": sorted({x["fixture"] for x in own}), "test_fixture": test_fixture}
     return train, val, counts
@@ -88,6 +124,9 @@ def main() -> int:
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--owner-weight", type=int, default=3)
     ap.add_argument("--seed", type=int, default=1234)
+    ap.add_argument("--targets", choices=["controlled", "verbatim"], default="controlled")
+    ap.add_argument("--cache", default="toolchain/data/it-encoder-cache-v1.pt",
+                    help="encoder outputs of the IndicVoices clips, kept between runs (same base model, same clips)")
     a = ap.parse_args()
     out = Path(a.out) if Path(a.out).is_absolute() else HOME / a.out
     if out.exists() and any(out.iterdir()):
@@ -99,7 +138,7 @@ def main() -> int:
     torch.manual_seed(a.seed)
     t0 = time.time()
     train, val, counts = examples(HOME / a.slice, HOME / "evals" / "screening" / a.set, a.test_fixture,
-                                  a.owner_weight, a.seed)
+                                  a.owner_weight, a.seed, a.targets)
     print(f"data: {len(train)} training clips, {len(val)} held out ({counts}); {time.time() - t0:.0f} s")
     eng = IndicTranscribeEngine("indic_transcribe_core")
     info = eng.load("cuda", {"device": "auto", "dtype": "bfloat16"})
@@ -110,19 +149,37 @@ def main() -> int:
     prompt = tok.encode_prompt("mr")
     mod = sys.modules[type(model).__module__]
 
+    cache_path = HOME / a.cache
+    key = f"{CACHE_VERSION}|{info.get('model_sha256')}"
+    cache = torch.load(cache_path, weights_only=True) if cache_path.is_file() else {}
+    if cache.get("__key__") != key:
+        cache = {"__key__": key}
+    fresh = 0
+
     def encode(items):
+        nonlocal fresh
         enc = []
-        for x, text, src in items:
-            wav = asr._load(np.ascontiguousarray(x, dtype=np.float32))
-            feats, mask = asr._features(wav)
-            with torch.inference_mode():
-                e = model.model.encoder(feats, attention_mask=mask)
+        for x, text, src, cid in items:
+            if src == "indicvoices" and cid in cache:
+                e = cache[cid]
+            else:
+                wav = asr._load(np.ascontiguousarray(x, dtype=np.float32))
+                feats, mask = asr._features(wav)
+                with torch.inference_mode():
+                    e = model.model.encoder(feats, attention_mask=mask).last_hidden_state[0].to(torch.bfloat16).cpu()
+                if src == "indicvoices":
+                    cache[cid] = e
+                    fresh += 1
             ids = [i + tok.spl_size for i in tok.multi.encode(text, out_type=int)] + [tok.eos_id]
-            enc.append((e.last_hidden_state[0].to(torch.bfloat16).cpu(), prompt + ids, src))
+            enc.append((e, prompt + ids, src))
         return enc
     t1 = time.time()
     tr, va = encode(train), encode(val)
-    print(f"encoder outputs cached: {len(tr) + len(va)} clips, {time.time() - t1:.0f} s")
+    if fresh:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(cache, cache_path)
+    print(f"encoder outputs: {len(tr) + len(va)} clips ({fresh} computed, the rest from {a.cache}), "
+          f"{time.time() - t1:.0f} s")
     for p in model.parameters():
         p.requires_grad_(False)
     cfg = LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05, target_modules=TARGETS, bias="none")

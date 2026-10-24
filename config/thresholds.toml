@@ -41,7 +41,7 @@ fail_if_flagged_ratio_above = 0.40     # HARD flags (not listed below) on more t
 # Soft flags mark lines a reviewer should check, but the text is a real attempt at the speech (wrong word forms,
 # speaker boundaries, channel bleed). They can make a run REVIEW, never FAIL. Matched by flag-name prefix.
 soft_flags = ["hindi_forms_in_marathi", "speaker_change_inside_segment", "crosstalk", "recovered_turn", "quiet_speech",
-              "uncertain"]
+              "uncertain", "meaning_check"]
 # Info flags are shown in review_list.md to help the reviewer but never change the verdict.
 info_flags = ["unknown_words", "latin_script"]
 fail_if_no_text = true

@@ -28,7 +28,7 @@ STAGE_KEYS = {
                                  "no_repeat_ngram_size", "hallucination_silence_threshold"},
     "recognise.indic_conformer": {"decoder", "piece_max_s", "threads", "segmentation"},
     "recognise.indic_transcribe": {"piece_max_s", "threads", "segmentation", "dtype", "device", "num_beams"},
-    "verify": {"required"},
+    "verify": {"required", "mode", "engine", "decoder"},
     "polish": {"doubled_words_guard"},
     "gate": {"thresholds"},
     "export": {"formats"},

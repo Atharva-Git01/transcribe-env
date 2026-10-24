@@ -159,3 +159,24 @@ def spoken_forms(reference: str, hypothesis: str, lang: str, detail: bool = Fals
     if detail:
         counts["rows"] = rows
     return counts
+
+
+def transfer(standard: str, verbatim: str, lang: str) -> tuple[str, list[tuple[str, str]]]:
+    """Spelling transfer (PLAN_v0.9 section 6): the words of `standard` (the recogniser's transcript) with the
+    spelling of `verbatim` (a model that writes as spoken) wherever both hold the same words once spelling is folded
+    away. A word that differs is never taken from `verbatim`; fillers keep the recogniser's spelling. Returns the new
+    text and every change as (standard words, as-spoken words)."""
+    from .metrics import normalise
+    std, ver = standard.split(), normalise(verbatim).split()
+    std_n = [normalise(w) for w in std]
+    out, changes, last = [], [], 0
+    for i1, i2, j1, j2 in match_blocks(std_n, ver, lang):
+        if all(content_word(w, lang) == "·" for w in std_n[i1:i2]):
+            continue
+        a, b = block_spelling(std_n, ver, (i1, i2, j1, j2), lang)
+        if a != b:
+            out += std[last:i1] + ver[j1:j2]
+            changes.append((" ".join(std[i1:i2]), " ".join(ver[j1:j2])))
+            last = i2
+    out += std[last:]
+    return " ".join(out), changes

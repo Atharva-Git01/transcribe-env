@@ -35,7 +35,7 @@ HELP = """trx {v} — local, offline transcription environment
   trx explain <run-id>             plain-language account of a run
   trx eval [--engine ID] [--recipe ID] [--fixture ID] [--save-baseline]
                                    score the pipeline on evals/fixtures (maintainers)
-  trx screen build|run|report [--candidate ID] [--set v1]
+  trx screen build|run|report|transfer|rescore [--candidate ID] [--base ID] [--set v1]
                                    PLAN_v0.9 screening harness: every candidate model on the same fixed
                                    private lines, scored per challenge set (maintainers)
   trx doctor [--offline] [--brief] [--deep]
@@ -77,8 +77,9 @@ def build_parser() -> Parser:
     ev.add_argument("--lang")
     ev.add_argument("--save-baseline", action="store_true")
     sc = sub.add_parser("screen", add_help=False)
-    sc.add_argument("action", choices=["build", "run", "report"])
+    sc.add_argument("action", choices=["build", "run", "report", "transfer", "rescore"])
     sc.add_argument("--candidate")
+    sc.add_argument("--base", default="indic_transcribe")
     sc.add_argument("--set", default="v1")
     d = sub.add_parser("doctor", add_help=False)
     d.add_argument("--offline", action="store_true")
@@ -210,6 +211,19 @@ def main(argv: list[str]) -> int:
                 out(screen.summary_line(r))
                 out(f"saved {r['file']} (texts: evals/screening/{args.set}/out/, evals/compare/; this PC only)")
                 return status_line(cmd, "OK", candidate=args.candidate, results=r["file"])
+            if args.action == "rescore":
+                if not args.candidate:
+                    raise TrxError("USAGE", "trx screen rescore needs --candidate ID")
+                r = screen.rescore(args.candidate, args.set)
+                out(screen.summary_line(r))
+                return status_line(cmd, "OK", candidate=args.candidate, results=r["file"])
+            if args.action == "transfer":
+                if not args.candidate:
+                    raise TrxError("USAGE", "trx screen transfer needs --candidate ID (the model whose spelling is used)")
+                r = screen.transfer_run(args.candidate, args.base, args.set)
+                out(screen.summary_line(r) + f" | {r['spelling_changes']} spelling changes")
+                out(f"saved {r['file']} (texts: evals/screening/{args.set}/out/, evals/compare/; this PC only)")
+                return status_line(cmd, "OK", candidate=r["candidate"], results=r["file"])
             rows = screen.report(args.set)
             for r in rows:
                 out(screen.summary_line(r))

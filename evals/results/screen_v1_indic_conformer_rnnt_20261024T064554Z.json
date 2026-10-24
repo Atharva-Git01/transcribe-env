@@ -1,0 +1,78 @@
+{
+  "schema": "trx.screen_result/1",
+  "set": "v1",
+  "candidate": "indic_conformer_rnnt",
+  "engine": "indic_conformer_600m",
+  "env_version": "0.9.0",
+  "utc": "2026-10-24T06:45:54Z",
+  "device": "cpu",
+  "compute_type": "onnx fp32 (rnnt)",
+  "fallback_reason": "onnxruntime could not start the CUDA provider; the encoder runs on the CPU",
+  "load_s": 26.6,
+  "decode_s": 551.2,
+  "audio_s": 798.9,
+  "rtf": 0.69,
+  "gpu_peak_mb": 0,
+  "scores": {
+    "all": {
+      "lines": 193,
+      "audio_s": 798.9,
+      "cer": 0.2911,
+      "cer_content": 0.2581
+    },
+    "S": {
+      "lines": 98,
+      "audio_s": 620.0,
+      "cer": 0.2562,
+      "cer_content": 0.227,
+      "spoken_slots": 50,
+      "hits": 3,
+      "misses": 38,
+      "unmatched": 9,
+      "recall": 0.0732,
+      "standard_slots": 241,
+      "switched": 1,
+      "switch_rate": 0.0048,
+      "list_recall": 0.0476,
+      "list_switch_rate": 0.0065
+    },
+    "R": {
+      "lines": 88,
+      "audio_s": 136.5,
+      "cer": 0.5,
+      "cer_content": 0.427,
+      "words_not_in_truth": 65,
+      "per_100_truth_words": 36.3128
+    },
+    "N": {
+      "lines": 54,
+      "audio_s": 348.9,
+      "cer": 0.277,
+      "cer_content": 0.2496,
+      "negations": 63,
+      "negation_errors": 26,
+      "numbers": 36,
+      "number_errors": 2
+    },
+    "G": {
+      "lines": 18,
+      "audio_s": 56.9,
+      "cer": 0.3945,
+      "cer_content": 0.3795
+    },
+    "by_fixture": {
+      "call_240509_20min": {
+        "lines": 169,
+        "audio_s": 739.2,
+        "cer": 0.2839,
+        "cer_content": 0.2516
+      },
+      "pappa_260603_211622": {
+        "lines": 24,
+        "audio_s": 59.7,
+        "cer": 0.3855,
+        "cer_content": 0.3401
+      }
+    }
+  }
+}

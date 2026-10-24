@@ -78,6 +78,8 @@ class FasterWhisperEngine:
             hallucination_silence_threshold=(float(fw["hallucination_silence_threshold"])
                                              if word_timestamps and fw.get("hallucination_silence_threshold") else None),
         )
+        if fw.get("without_timestamps"):   # models fine-tuned without timestamp tokens loop in timestamp mode (IndicWhisper)
+            kwargs["without_timestamps"] = True
         if clip_timestamps:
             kwargs["clip_timestamps"] = clip_timestamps
             kwargs["vad_filter"] = False

@@ -1,0 +1,78 @@
+{
+  "schema": "trx.screen_result/1",
+  "set": "v1",
+  "candidate": "whisper_large_v3_as_spoken_prompt",
+  "engine": "faster_whisper_large_v3",
+  "env_version": "0.9.0",
+  "utc": "2026-10-24T06:57:09Z",
+  "device": "cuda",
+  "compute_type": "int8_float16",
+  "fallback_reason": null,
+  "load_s": 142.6,
+  "decode_s": 507.5,
+  "audio_s": 798.9,
+  "rtf": 0.635,
+  "gpu_peak_mb": 2779,
+  "scores": {
+    "all": {
+      "lines": 193,
+      "audio_s": 798.9,
+      "cer": 0.6163,
+      "cer_content": 0.5825
+    },
+    "S": {
+      "lines": 98,
+      "audio_s": 620.0,
+      "cer": 0.5298,
+      "cer_content": 0.4835,
+      "spoken_slots": 50,
+      "hits": 9,
+      "misses": 11,
+      "unmatched": 30,
+      "recall": 0.45,
+      "standard_slots": 241,
+      "switched": 75,
+      "switch_rate": 0.641,
+      "list_recall": 0.5625,
+      "list_switch_rate": 0.9294
+    },
+    "R": {
+      "lines": 88,
+      "audio_s": 136.5,
+      "cer": 1.3297,
+      "cer_content": 1.4662,
+      "words_not_in_truth": 234,
+      "per_100_truth_words": 130.7263
+    },
+    "N": {
+      "lines": 54,
+      "audio_s": 348.9,
+      "cer": 0.5497,
+      "cer_content": 0.503,
+      "negations": 63,
+      "negation_errors": 55,
+      "numbers": 36,
+      "number_errors": 33
+    },
+    "G": {
+      "lines": 18,
+      "audio_s": 56.9,
+      "cer": 0.6793,
+      "cer_content": 0.6451
+    },
+    "by_fixture": {
+      "call_240509_20min": {
+        "lines": 169,
+        "audio_s": 739.2,
+        "cer": 0.6053,
+        "cer_content": 0.5724
+      },
+      "pappa_260603_211622": {
+        "lines": 24,
+        "audio_s": 59.7,
+        "cer": 0.7621,
+        "cer_content": 0.7095
+      }
+    }
+  }
+}

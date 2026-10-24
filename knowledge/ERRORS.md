@@ -512,3 +512,37 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Rule:** spelling is judged on matched word blocks with every same-sound difference folded away; a spoken form that
   is also a word is never folded.
 
+## E42 — Screening every candidate (PLAN_v0.9 stage 1) and the first decoder training (2026-10-24, 0.9.1)
+- **Seen** (`trx screen`, the 193 fixed lines of the owner's two calls; spoken forms = owner's spoken words written as
+  spoken / of those the model had the word for; switched = standard words written as spoken):
+
+  | candidate | content CER | spoken forms | switched | lines < 2 s | negations wrong | where |
+  |---|---|---|---|---|---|---|
+  | Indic-Transcribe (current) | **0.207** | 0/49 | 0/241 | 0.386 | 10/63 | GPU bf16, RTF 0.31 |
+  | IndicConformer CTC | 0.247 | 3/42 | 1/241 | 0.411 | 13/63 | CPU, RTF 0.33 |
+  | IndicConformer RNNT | 0.258 | 3/41 | 1/241 | 0.427 | 26/63 | CPU, RTF 0.69 |
+  | IndicWhisper Marathi | 0.407 | 1/29 | 0/241 | 0.806 | 33/63 | GPU int8, RTF 0.49 |
+  | MMS-1b-all + Marathi adapter | 0.433 | 1/8 | 6/241 | 0.831 | 51/63 | GPU fp16, RTF 0.03 |
+  | Whisper large-v3 + as-spoken prompt | 0.583 | 9/20 | 75/241 | 1.466 | 55/63 | GPU int8, RTF 0.64 |
+- **Lessons:**
+  - No model, as it is, writes the owner's spoken forms; Indic-Transcribe stays by far the most accurate.
+  - A prompt with as-spoken examples changes Whisper's style, not its hearing: more spoken forms (9 of 20), but 31 %
+    of the standard words switched and many invented words.
+  - IndicWhisper was fine-tuned without timestamp tokens: decoding in timestamp mode looped on 36 of 193 lines
+    (content CER 1.31). The engine now takes `without_timestamps = true` (0.41).
+  - The phoneme recogniser (wav2vec2-xlsr-53-espeak) cannot judge spellings on phone calls. Edit distance of its
+    best guess: 19 of 50 spoken forms heard, but 114 of 241 standard words it would switch. Its own CTC likelihood
+    prefers the sounds of the languages it learned (n over the retroflex n, a dropped h): 160 of 241 switched at any
+    margin. Its Marathi inventory has no breathy stops (gh, dh, bh) at all.
+  - `onnxruntime-gpu` on PyPI is built for CUDA 13 from 1.27 on; this PC's GPU stack is CUDA 12, and one process can
+    load only one `cudnn64_9.dll` (same name for both CUDA versions), so CUDA 13 would break PyTorch and
+    CTranslate2 next to it. 1.26.0 is the last CUDA 12 build.
+  - Omnilingual ASR needs `fairseq2n`, which has no Windows build.
+  - A decoder LoRA trained on IndicVoices' whole `verbatim` text (run v1) learned the transcribers' habits: "nahi"
+    became "na" (a different word) 9 more times, and negation errors on the held-out call went 10 → 20. It wrote 2 of
+    43 spoken forms. Two safeguards since: **controlled targets** (only the listed spoken pairs go into the training
+    text) and **spelling transfer** (the recogniser's words, the trained model's spelling only where both hold the
+    same word): with v1 the transfer kept the content CER (0.2069) and the negations (10/63) exactly.
+- **Rule:** a model that writes as spoken is used through the spelling transfer unless it beats the recogniser on
+  words; training text holds only listed (owner-reviewable) spoken forms.
+

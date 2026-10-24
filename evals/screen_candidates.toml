@@ -21,15 +21,15 @@ params = { compute_type_gpu = "int8_float16", compute_type_cpu = "int8" }
 fw = { beam_size = 5, best_of = 5, temperature = [0.0], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4 }
 prompt = "prompts/initial_prompts/mr/as_spoken.txt"
 
-[indicwhisper_mr]                 # AI4Bharat Vistaar: Whisper fine-tuned on Indian speech (MIT); CTranslate2 copy
-engine = "faster_whisper_indicwhisper_mr"
+[indicwhisper_mr]                 # AI4Bharat Vistaar: Whisper fine-tuned on Indian speech (MIT); CTranslate2 copy. It was
+engine = "faster_whisper_indicwhisper_mr"   # trained without timestamp tokens: decoding with them looped on 36 of 193 lines
 params = { compute_type_gpu = "int8_float16", compute_type_cpu = "int8" }
-fw = { beam_size = 5, best_of = 5, temperature = [0.0], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4 }
+fw = { beam_size = 5, best_of = 5, temperature = [0.0, 0.2, 0.4, 0.6], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4, without_timestamps = true }
 
 [indicwhisper_mr_as_spoken_prompt]
 engine = "faster_whisper_indicwhisper_mr"
 params = { compute_type_gpu = "int8_float16", compute_type_cpu = "int8" }
-fw = { beam_size = 5, best_of = 5, temperature = [0.0], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4 }
+fw = { beam_size = 5, best_of = 5, temperature = [0.0, 0.2, 0.4, 0.6], condition_on_previous_text = false, no_speech_threshold = 0.6, log_prob_threshold = -1.0, compression_ratio_threshold = 2.4, without_timestamps = true }
 prompt = "prompts/initial_prompts/mr/as_spoken.txt"
 
 [mms_1b_all_mar]                  # Meta MMS-1b-all + its Marathi adapter: CC-BY-NC, tests only, never paid work
@@ -39,3 +39,11 @@ params = { target_lang = "mar" }
 [phoneme_xlsr53_espeak]           # the acoustic judge of spellings: no transcript, scored on the S slots
 engine = "phoneme_xlsr53_espeak"
 judge = true
+
+[phoneme_xlsr53_espeak_ctc]       # the judge, version 2: its own CTC likelihood of each spelling (margins 0, 2, 5 nats)
+engine = "phoneme_xlsr53_espeak"
+judge = "ctc"
+
+[it_lora_v1_test_call]            # decoder LoRA (setup/train_it_lora.py) trained on IndicVoices + the Pappa lines:
+engine = "indic_transcribe_core"  # judge it on the call (by_fixture), never on Pappa (fold by recording)
+params = { piece_max_s = 30.0, dtype = "bfloat16", device = "auto", threads = 8, lora = "toolchain/models/it-lora-v1-test-call" }

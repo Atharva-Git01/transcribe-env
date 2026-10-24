@@ -1,0 +1,27 @@
+{
+  "schema": "trx.screen_result/1",
+  "set": "v1",
+  "candidate": "phoneme_xlsr53_espeak",
+  "engine": "phoneme_xlsr53_espeak",
+  "env_version": "0.9.0",
+  "utc": "2026-10-24T06:58:59Z",
+  "device": "cuda",
+  "compute_type": "float16",
+  "fallback_reason": null,
+  "load_s": 21.4,
+  "decode_s": 12.9,
+  "audio_s": 798.9,
+  "rtf": 0.016,
+  "gpu_peak_mb": 1649,
+  "scores": {
+    "judge": {
+      "spoken_slots": 50,
+      "prefers_spoken": 19,
+      "ties": 16,
+      "recall": 0.38,
+      "standard_slots": 241,
+      "false_switches": 114,
+      "false_switch_rate": 0.473
+    }
+  }
+}

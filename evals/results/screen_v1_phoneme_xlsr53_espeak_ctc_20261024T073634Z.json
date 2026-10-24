@@ -1,0 +1,56 @@
+{
+  "schema": "trx.screen_result/1",
+  "set": "v1",
+  "candidate": "phoneme_xlsr53_espeak_ctc",
+  "engine": "phoneme_xlsr53_espeak",
+  "env_version": "0.9.0",
+  "utc": "2026-10-24T07:36:34Z",
+  "device": "cuda",
+  "compute_type": "float16",
+  "fallback_reason": null,
+  "load_s": 24.9,
+  "decode_s": 8.3,
+  "audio_s": 798.9,
+  "rtf": 0.01,
+  "gpu_peak_mb": 1681,
+  "scores": {
+    "judge": {
+      "spoken_slots": 50,
+      "prefers_spoken": 34,
+      "ties": 0,
+      "recall": 0.68,
+      "standard_slots": 241,
+      "false_switches": 160,
+      "false_switch_rate": 0.6639,
+      "margins": {
+        "margin_0": {
+          "spoken_slots": 50,
+          "prefers_spoken": 34,
+          "ties": 0,
+          "recall": 0.68,
+          "standard_slots": 241,
+          "false_switches": 160,
+          "false_switch_rate": 0.6639
+        },
+        "margin_2": {
+          "spoken_slots": 50,
+          "prefers_spoken": 29,
+          "ties": 5,
+          "recall": 0.58,
+          "standard_slots": 241,
+          "false_switches": 150,
+          "false_switch_rate": 0.6224
+        },
+        "margin_5": {
+          "spoken_slots": 50,
+          "prefers_spoken": 17,
+          "ties": 17,
+          "recall": 0.34,
+          "standard_slots": 241,
+          "false_switches": 144,
+          "false_switch_rate": 0.5975
+        }
+      }
+    }
+  }
+}

@@ -338,9 +338,10 @@ id = "indicwhisper_mr_archive"
 phase = 9
 kind = "zip"
 licence = "MIT (AI4Bharat Vistaar README: the licence applies to all the fine-tuned language models)"
-# PLAN_v0.9 download 2 (1,411,299,569 bytes; the store publishes no sha256: the first download's is pinned here).
+# PLAN_v0.9 download 2 (1,411,299,569 bytes; the store publishes no sha256: the first download's is pinned).
 # toolchain/downloads and the extracted folder are junctions to the USB on this PC.
 url = "https://indicwhisper.objectstore.e2enetworks.net/marathi_models.zip"
+archive_sha256 = "484ddf939320d9cee0bf3b6ebc4e028eb849dfcbe1ce14cf81359403b57781b6"   # first download, 2026-10-24
 extract_to = "toolchain/models/indicwhisper-mr-hf"
 files = [ { dest = "toolchain/models/indicwhisper-mr-hf/.extracted" } ]
 extra_mb = 1411

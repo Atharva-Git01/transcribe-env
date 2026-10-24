@@ -411,12 +411,13 @@ def _number_core(w: str, nums: set, endings: tuple) -> str | None:
 
 def meaning_errors(reference: str, hypothesis: str, lang: str = "") -> dict:
     """Errors that change the meaning while costing few characters (E39): a negation lost or added (a "will" that
-    became "will not"), a number word lost, changed or added. Words are compared after the "loose" fold; a word
-    counts as kept when the same kind of word stands within two positions of where the alignment puts it. Word
-    lists: library/scoring/<lang>.toml."""
+    became "will not"), a number word lost, changed or added. Words are compared after the "loose" fold, with the
+    listed spoken forms read as their standard words (a spoken "nai" is still a negation, 0.9.0); a word counts as
+    kept when the same kind of word stands within two positions of where the alignment puts it. Word lists:
+    library/scoring/<lang>.toml."""
     sw = scoring_words(lang)
-    ref = _joined(normalise_level(reference, lang, "loose").split(), sw["joined"])
-    hyp = _joined(normalise_level(hypothesis, lang, "loose").split(), sw["joined"])
+    ref = _joined(_standard_words(normalise_level(reference, lang, "loose"), lang).split(), sw["joined"])
+    hyp = _joined(_standard_words(normalise_level(hypothesis, lang, "loose"), lang).split(), sw["joined"])
     nums = _number_words(lang) if lang in ("mr", "hi") else set()
     pairs = _align_pairs(ref, hyp)
     to_h, to_r = dict(pairs), {j: i for i, j in pairs}
@@ -446,6 +447,31 @@ def meaning_errors(reference: str, hypothesis: str, lang: str = "") -> dict:
         sum(1 for j, c in enumerate(h_num) if c and c not in near(r_num, ar[j]))
     return {"negations": sum(1 for w in ref if neg(w)), "negation_errors": neg_err,
             "numbers": sum(1 for c in r_num if c), "number_errors": num_err}
+
+
+def line_truths(reference: str, hyp_segments: list[dict]) -> list[str]:
+    """The truth words aligned to each output line (character alignment; a word the output does not have goes to
+    the line before it)."""
+    from collections import Counter, defaultdict
+    words = normalise(reference).split()
+    r_chars, r_word, h_chars, h_seg = [], [], [], []
+    for k, w in enumerate(words):
+        r_chars += list(w)
+        r_word += [k] * len(w)
+    for j, s in enumerate(hyp_segments):
+        t = normalise(s.get("text", "")).replace(" ", "")
+        h_chars += list(t)
+        h_seg += [j] * len(t)
+    votes: dict = defaultdict(Counter)
+    for i, j in _align_pairs(r_chars, h_chars):
+        votes[r_word[i]][h_seg[j]] += 1
+    out, last = [[] for _ in hyp_segments], 0
+    for k, w in enumerate(words):
+        if votes.get(k):
+            last = max(last, votes[k].most_common(1)[0][0])
+        if out:
+            out[last].append(w)
+    return [" ".join(x) for x in out]
 
 
 def line_scores(reference: str, hyp_segments: list[dict], lang: str = "") -> list[dict]:

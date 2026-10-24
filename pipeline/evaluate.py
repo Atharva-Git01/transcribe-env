@@ -12,8 +12,8 @@ from __future__ import annotations
 import time
 
 from .common import TRX_HOME, TrxError, env_version, load_config, read_json, utc_now, write_json
-from .metrics import (TURN_KINDS, cer, cer_level, line_scores, meaning_errors, self_test, speaker_accuracy,
-                      turn_alignment, turn_outcomes, wer)
+from .metrics import (TURN_KINDS, cer, cer_level, line_scores, line_truths, meaning_errors, self_test,
+                      speaker_accuracy, turn_alignment, turn_outcomes, wer)
 from .stages import IMPLEMENTED
 
 FIXTURES = TRX_HOME / "evals" / "fixtures"
@@ -100,6 +100,11 @@ def failure_monitor(truth: dict, hyp: str, hyp_segs: list[dict], lang: str, turn
     mon["bad_lines"] = len(bad)
     mon["bad_lines_flagged"] = sum(1 for s in bad if any(f.split(":")[0].split(" (")[0] not in info
                                                          for f in s.get("flags", [])))
+    if hyp_segs:   # lines whose negations/numbers are wrong, and how many the meaning check (PLAN_v0.9 B3) marked
+        wrong = {j for j, t in enumerate(line_truths(ref, hyp_segs)) if t and sum(
+            meaning_errors(t, hyp_segs[j].get("text", ""), lang)[k] for k in ("negation_errors", "number_errors"))}
+        marked = {j for j, s in enumerate(hyp_segs) if any(f.startswith("meaning_check") for f in s.get("flags", []))}
+        mon.update(meaning_lines=len(wrong), meaning_lines_flagged=len(wrong & marked), meaning_flags=len(marked))
     return mon
 
 
@@ -122,6 +127,9 @@ def monitor_line(m: dict) -> str:
     sf = m.get("spoken_forms")
     spoken = (f" | spoken forms written as spoken {sf['hits']}/{sf['hits'] + sf['misses']}, standard words switched "
               f"{sf['switched']}/{sf['kept'] + sf['switched']}") if sf else ""
+    if m.get("meaning_flags"):
+        spoken += (f" | meaning check marked {m['meaning_lines_flagged']} of {m['meaning_lines']} lines with a wrong "
+                   f"negation/number ({m['meaning_flags']} marks)")
     return (f"content CER {m['cer_content']} | {turns}negations {m['negation_errors']} wrong of {m['negations']} | "
             f"numbers {m['number_errors']} wrong of {m['numbers']} | lines < 2 s CER {m['short_line_cer']}, "
             f"longer {m['long_line_cer']} | bad lines flagged {m['bad_lines_flagged']}/{m['bad_lines']}{spoken}")

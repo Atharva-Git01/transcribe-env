@@ -37,8 +37,11 @@ _IPA = {
     "z": "j", "ʒ": "j", "h": "h", "ɦ": "h", "c": "c", "ɟ": "j",
     "ə": "@", "ɐ": "@", "ʌ": "@", "ɜ": "@", "a": "a", "ɑ": "a", "æ": "e", "ä": "a", "i": "i", "ɪ": "i", "y": "i",
     "u": "u", "ʊ": "u", "ɯ": "u", "e": "e", "ɛ": "e", "o": "o", "ɔ": "o", "ɒ": "o", "ø": "e", "œ": "e",
+    # symbols of other languages the recogniser may still use, mapped to the nearest Marathi class
+    "ɻ": "L", "ʐ": "S", "ʑ": "j", "ʝ": "y", "ɨ": "i", "ᵻ": "i", "ʉ": "u", "ɚ": "@", "ɵ": "o", "ɫ": "l", "ʎ": "l",
+    "ɬ": "l", "θ": "t", "ð": "d", "χ": "kH", "X": "kH", "ħ": "h", "ʕ": "h", "ʁ": "r", "ɴ": "n", "N": "n", "ɸ": "pH",
 }
-_DROP = {"ː", "ˑ", "ˈ", "ˌ", "̃", "͡", "‿", "|", "ʔ"}
+_DROP = {"ː", "ˑ", "ˈ", "ˌ", "̃", "͡", "‿", "|", "ʔ", "ʲ"}
 
 
 def read_devanagari(text: str) -> list[str]:
@@ -105,3 +108,68 @@ def judge(heard: str, candidates: list[str]) -> tuple[int | None, list[int]]:
     d = [distance(h, read_devanagari(c)) for c in candidates]
     best = min(d)
     return (d.index(best) if d.count(best) == 1 else None), d
+
+
+# ---- version 2: the recogniser's own likelihood of each spelling (CTC), not an edit distance of its best guess ----
+# Devanagari -> the recogniser's phoneme tokens (wav2vec2-xlsr-53-espeak-cv-ft). Its inventory has no breathy-voiced
+# stops (gh, jh, dh, bh) and no voiced dental d: those become the plain stop + "h" and "d".
+_CTC_CONS = {
+    "क": "k", "ख": "kʰ", "ग": "ɡ", "घ": "ɡ h", "ङ": "ŋ", "च": "tʃ", "छ": "tʃʰ", "ज": "dʒ", "झ": "dʒ h", "ञ": "ɲ",
+    "ट": "ʈ", "ठ": "ʈʰ", "ड": "ɖ", "ढ": "ɖ h", "ण": "ɳ", "त": "t̪", "थ": "tʰ", "द": "d", "ध": "d h", "न": "n",
+    "प": "p", "फ": "pʰ", "ब": "b", "भ": "b h", "म": "m", "य": "j", "र": "ɾ", "ल": "l", "ळ": "ɭ", "व": "ʋ",
+    "श": "ʃ", "ष": "ʂ", "स": "s", "ह": "h",
+}
+_CTC_VOWEL = {"अ": "ə", "आ": "aː", "इ": "i", "ई": "iː", "उ": "u", "ऊ": "uː", "ऋ": "ɾ u", "ए": "eː", "ऐ": "ə i",
+              "ओ": "oː", "औ": "ə u", "ऑ": "ɔ", "ॲ": "ɛ", "ऍ": "ɛ"}
+_CTC_MATRA = {"ा": "aː", "ि": "i", "ी": "iː", "ु": "u", "ू": "uː", "ृ": "ɾ u",
+              "े": "eː", "ै": "ə i", "ो": "oː", "ौ": "ə u", "ॅ": "ɛ", "ॉ": "ɔ",
+              "ॆ": "eː", "ॊ": "oː"}
+
+
+def ctc_tokens(text: str) -> list[str]:
+    """Devanagari text as the recogniser's phoneme tokens (inherent vowel ə; a word-final one is silent)."""
+    out: list[str] = []
+    for word in unicodedata.normalize("NFC", text).split():
+        snd: list[str] = []
+        chars = [c for c in word if c != _NUKTA]
+        for k, c in enumerate(chars):
+            nxt = chars[k + 1] if k + 1 < len(chars) else ""
+            if c in _CTC_CONS:
+                snd += _CTC_CONS[c].split()
+                if nxt not in _CTC_MATRA and nxt != _VIRAMA:
+                    snd.append("ə")
+            elif c in _CTC_MATRA:
+                if snd and snd[-1] == "ə":
+                    snd.pop()
+                snd += _CTC_MATRA[c].split()
+            elif c in _CTC_VOWEL:
+                snd += _CTC_VOWEL[c].split()
+            elif c in (_ANUSVARA, _CANDRA):
+                snd.append("n")
+            elif c == _VISARGA:
+                snd.append("h")
+        if len(snd) > 1 and snd[-1] == "ə":
+            snd.pop()
+        out += snd
+    return out
+
+
+def ctc_nll(log_probs, text: str, vocab: dict, blank: int) -> float | None:
+    """Negative log-likelihood of the text's phonemes under the recogniser's frame log-probabilities (T x V)."""
+    import torch
+    ids = [vocab[t] for t in ctc_tokens(text) if t in vocab]
+    if not ids or len(ids) > log_probs.shape[0]:
+        return None
+    loss = torch.nn.functional.ctc_loss(log_probs[:, None, :], torch.tensor([ids]), torch.tensor([log_probs.shape[0]]),
+                                        torch.tensor([len(ids)]), blank=blank, reduction="sum", zero_infinity=True)
+    return float(loss)
+
+
+def ctc_judge(log_probs, candidates: list[str], vocab: dict, blank: int, margin: float = 0.0):
+    """Index of the most likely candidate line, or None when it is not ahead of the first candidate (the standard
+    spelling) by more than `margin` nats; and every candidate's negative log-likelihood."""
+    nll = [ctc_nll(log_probs, c, vocab, blank) for c in candidates]
+    if any(x is None for x in nll):
+        return None, nll
+    best = min(range(len(nll)), key=nll.__getitem__)
+    return (best if best == 0 or nll[0] - nll[best] > margin else None), nll

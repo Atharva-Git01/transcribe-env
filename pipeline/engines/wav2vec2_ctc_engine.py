@@ -55,6 +55,17 @@ class Wav2Vec2CtcEngine:
             logits = self.model(inputs.input_values.to(self.dev, self.dtype)).logits
         return tok.decode(logits.argmax(-1)[0].tolist()).strip()
 
+    def log_probs(self, audio: np.ndarray):
+        """Frame log-probabilities (T x V, float32, CPU) of the first PIECE_S seconds of a clip, and the token table
+        {token: id} with the blank id: what the phoneme judge scores spellings with (pipeline/phonemes.ctc_judge)."""
+        import torch
+        fe, tok = self.proc
+        x = np.ascontiguousarray(audio[:int(PIECE_S * 16000)], dtype=np.float32)
+        inputs = fe(x, sampling_rate=16000, return_tensors="pt")
+        with torch.inference_mode():
+            logits = self.model(inputs.input_values.to(self.dev, self.dtype)).logits[0].float()
+        return torch.log_softmax(logits, -1).cpu(), tok.get_vocab(), tok.pad_token_id
+
     def transcribe(self, audio: np.ndarray, language: str | None, fw: dict, vad: dict | None,
                    initial_prompt: str | None, word_timestamps: bool, clip_timestamps: list[float] | None = None) -> list[dict]:
         dur = len(audio) / 16000.0
