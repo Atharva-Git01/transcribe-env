@@ -11,6 +11,11 @@
 4. Viterbi smoothing with a switching penalty (`switch_penalty`): speakers do not change every quarter second.
    Across a pause of at least `pause_min_s` the cost is `switch_penalty_pause` (lower: turns change at pauses, E39).
 5. Turns = runs of one speaker; turns shorter than `min_turn_s` join their neighbour.
+6. Second pass (PLAN_v0.9 B2, off unless the recipe sets it): `short_regions = "own_voice"` gives a speech region too
+   short for a window (< 0.5 s, mostly replies) a padded voice sample of its own, labelled by the nearest speaker
+   centroid, instead of the nearest window's speaker; `rescan_long_turns_s` > 0 re-scans every turn at least that
+   long with `rescan_window_s` windows every `rescan_hop_s` and splits off a run of at least `rescan_min_run_s` where
+   the other speaker's centroid is closer by more than `rescan_margin` (a reply under the other speaker's turn).
 Measured on the Pappa call (2 parties, mono narrowband): 94.5 % of words get the right speaker
 (pyannote-segmentation pipeline: <= 71 %, everything-one-speaker: 54 %).
 """
@@ -85,8 +90,18 @@ def _fbank(x: np.ndarray) -> np.ndarray:
     return (f - f.mean(0, keepdims=True)).astype(np.float32)
 
 
+_SESSION: dict = {}
+
+
 def _gpu_session():
-    """An onnxruntime CUDA session of the model, or None (no onnxruntime-gpu, no usable GPU, or the CPU forced)."""
+    """An onnxruntime CUDA session of the model (one per process), or None (no onnxruntime-gpu, no usable GPU, or
+    the CPU forced)."""
+    if "s" not in _SESSION:
+        _SESSION["s"] = _new_gpu_session()
+    return _SESSION["s"]
+
+
+def _new_gpu_session():
     from ..common import load_config
     if load_config("defaults")["runtime"].get("device", "auto") == "cpu":
         return None
@@ -270,9 +285,75 @@ def diarize(audio: np.ndarray, speech, params: dict) -> tuple[list[dict], dict]:
         inside = float(params.get("switch_penalty", 0.1))
         lab = viterbi(X @ C.T, penalties(wins, speech, inside, float(params.get("switch_penalty_pause", inside)),
                                          float(params.get("pause_min_s", 0.2))))
+    if k > 1 and params.get("short_regions", "nearest") == "own_voice":
+        extra = short_windows(speech, win, 0.5)
+        if extra:
+            E = embed(audio, [w for w, _ in extra])
+            wins = list(wins) + [region for _, region in extra]
+            lab = np.concatenate([lab, (E @ C.T).argmax(1)])
+            order = np.argsort([(a + b) / 2 for a, b in wins], kind="stable")
+            wins, lab = [wins[i] for i in order], lab[order]
+            info["short_regions_own_voice"] = len(extra)
     turns = turns_from(wins, lab, speech, hop, float(params.get("min_turn_s", 0.3)))
+    if k > 1 and float(params.get("rescan_long_turns_s", 0)) > 0:
+        turns, n = rescan(audio, turns, C, params)
+        info["rescan_splits"] = n
     cos = float(np.min(C @ C.T)) if k > 1 else 1.0
     return turns, dict(info, speakers=k, how=how, min_centroid_cosine=round(cos, 3))
+
+
+def short_windows(speech, win: float, min_len: float) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """[(padded window, region)] for every speech region shorter than min_len: the region in the middle of a window
+    of `min_len` (the silence around it adds no voice)."""
+    out = []
+    for a, b in speech:
+        if b - a < min_len:
+            pad = (min_len - (b - a)) / 2
+            out.append(((max(0.0, a - pad), b + pad), (a, b)))
+    return out
+
+
+def rescan(audio: np.ndarray, turns: list[dict], C: np.ndarray, params: dict) -> tuple[list[dict], int]:
+    """Split off the other speaker's runs inside long turns (module docstring, step 6)."""
+    min_s = float(params["rescan_long_turns_s"])
+    w, h = float(params.get("rescan_window_s", 0.6)), float(params.get("rescan_hop_s", 0.1))
+    margin, min_run = float(params.get("rescan_margin", 0.1)), float(params.get("rescan_min_run_s", 0.5))
+    out, splits = [], 0
+    grid = {i: np.arange(t["start"], t["end"] - w + 1e-6, h) for i, t in enumerate(turns) if t["end"] - t["start"] >= min_s}
+    flat = [(float(s), float(s) + w) for i in grid for s in grid[i]]
+    Xall = embed(audio, flat) if flat else np.zeros((0, C.shape[1]))
+    at, rows = 0, {}
+    for i in grid:
+        rows[i] = Xall[at:at + len(grid[i])]
+        at += len(grid[i])
+    for ti, t in enumerate(turns):
+        if ti not in grid:
+            out.append(t)
+            continue
+        starts = grid[ti]
+        sc = rows[ti] @ C.T
+        own = int(t["speaker"])
+        other = np.where(np.arange(sc.shape[1]) == own, -9, sc).argmax(1)
+        ahead = sc[np.arange(len(sc)), other] - sc[:, own] > margin
+        cur, runs = None, []
+        for i, on in enumerate(list(ahead) + [False]):
+            if on and cur is None:
+                cur = i
+            elif not on and cur is not None:
+                a, b = starts[cur] + w / 2 - h / 2, starts[i - 1] + w / 2 + h / 2
+                if b - a >= min_run:
+                    runs.append((max(t["start"], a), min(t["end"], b), int(np.bincount(other[cur:i]).argmax())))
+                cur = None
+        pos = t["start"]
+        for a, b, spk in runs:
+            if a - pos > 0.05:
+                out.append({"start": round(pos, 3), "end": round(a, 3), "speaker": own})
+            out.append({"start": round(a, 3), "end": round(b, 3), "speaker": spk})
+            pos = b
+            splits += 1
+        if t["end"] - pos > 0.05:
+            out.append({"start": round(pos, 3), "end": round(t["end"], 3), "speaker": own})
+    return out, splits
 
 
 def run(ctx: Ctx, params: dict) -> None:

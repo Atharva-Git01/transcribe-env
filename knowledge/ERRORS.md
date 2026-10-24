@@ -556,3 +556,16 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
   that a prompt file holds. Truths, eval runs and real runs are scanned as before; rare words of the outputs too.
 - **Rule:** gate a commit on `trx test`'s own exit code (run it alone, or check `$?` / `PIPESTATUS[0]`).
 
+## E44 — A second diarization pass for lost replies (PLAN_v0.9 B2): tried, not adopted (2026-10-24)
+- **Tried** (phone recipe copies, both calls; `pipeline/stages/diarize_embed.py` step 6, off by default):
+  - `short_regions = "own_voice"`: a speech region too short for a window gets a padded voice sample of its own
+    instead of the nearest window's speaker. 20-min call: text, speaker accuracy and every turn outcome unchanged
+    (negation errors 12 → 11). Regions under 0.3 s are joined to a neighbour anyway (`min_turn_s`), and the longer
+    ones already got the right speaker from their neighbour.
+  - plus `rescan_long_turns_s = 2.0` (0.6 s windows every 0.1 s inside long turns, split where the other speaker is
+    closer by > 0.1 for ≥ 0.5 s): missing turns 16 → 14, merged 6 → 5, lost acknowledgements 9 → 8 — but every split
+    makes short lines, which the recogniser decodes worse (P2): content CER 0.191 → 0.198, lines < 2 s 0.282 → 0.326.
+    Pappa unchanged in both.
+- **Rule:** a reply found by diarization is only worth its line when the recogniser can read it; recovering replies
+  needs the short-reply problem (P2) solved first. The code stays, off.
+
