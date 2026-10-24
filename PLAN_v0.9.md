@@ -52,7 +52,7 @@
 | Can Indic-Transcribe write spoken forms? | **No.** Scored against the audio by its own decoder, its standard spelling won 54 of 54 times. |
 | Can IndicConformer? | **Hardly:** 2 of 47 (CTC), 0 (RNNT). It is also less accurate on the call: CER 0.265 vs 0.232. |
 | How do other systems do it? | Each writes like its training transcripts. Systems that write "as spoken" were trained on verbatim transcripts, or are prompted with examples: Sarvam's verbatim mode (cloud), OpenAI's prompt for gpt-4o-transcribe (cloud), CrisperWhisper (English and German). |
-| Is there verbatim Marathi to learn from? | **IndicVoices** (AI4Bharat, CC-BY-4.0) transcribes at two levels. **Level 1 is "exactly as spoken"** (their example: "muje" for "mujhe"); Level 2 is textbook spelling. Our models probably learned Level 2. Whether the released files hold Level 1 is to be checked (section 5, phase 3). |
+| Is there verbatim Marathi to learn from? | **IndicVoices** (AI4Bharat, CC-BY-4.0) transcribes at two levels. **Level 1 is "exactly as spoken"** (their example: "muje" for "mujhe"); Level 2 is textbook spelling. Our models probably learned Level 2. **Checked 2026-10-24: the released files hold both**: column `verbatim` is Level 1, `normalized` is Level 2 (e.g. *nay* vs *nahi*, *chaluye* vs *chalu aahe*). |
 | What fails today (E39, E40) | Short replies invent words (28 % wrong vs 18 %); 9 acknowledgements lost; ~10 of 60 negations flipped; names in several spellings; single wrong words in long lines unflagged. |
 | IndicConformer as a second opinion | Worse on every kind of line, but better on 8 of 20 uncertain lines. Its negation disagreements: 8 lines, 5 of them real. |
 
@@ -107,7 +107,8 @@ A model that does not fit in fp16/bf16 is tried 8-bit or left out. It is **never
 **Training data:**
 - the owner's as-spoken transcripts (13 minutes now, more over time);
 - a 1–2 hour slice of IndicVoices Marathi Level 1, used for training only, never for testing;
-- phone-band simulation (8 kHz, compression) on the IndicVoices clips, so they sound like our calls.
+- phone-band simulation (8 kHz, compression) on the IndicVoices clips, so they sound like our calls (checked
+  2026-10-24: the Conversation clips already are phone band; only the wide-band Extempore clips need it).
 
 ---
 
@@ -205,11 +206,15 @@ shows the other reading.
 | 6 | `peft` 0.21.2 (LoRA training) | PyPI | 0.8 MB | Apache-2.0 | venv |
 | 7 | IndicVoices Marathi, a 1–2 hour slice with Level 1 ("as spoken") text | Hugging Face `ai4bharat/IndicVoices` (gated) | ≤ 10 GB (asked again if a slice needs more) | CC-BY-4.0 (credit AI4Bharat) | USB |
 
+- **Fetched:** item 7 on 2026-10-24: `toolchain/data/indicvoices-mr-slice1` (USB), 1,469 clips, 2.0 h (1.3 h
+  Conversation, 0.7 h Extempore), 263 speakers, 28 districts; 67 % of the clips hold at least one spoken form. It
+  read 809 MB of the 37.5 GB Marathi part (about 580 h) and stores 107 MB.
 - **Totals:** about 12 GB plus the IndicVoices slice. The USB has 42 GB free. Only items 1, 5 and 6 go to C:
   (12 GB free).
 - **Pinned:** every file gets a pinned revision or sha256 in `setup/sources.toml` / the lock files, as before.
 - **Asked separately:** anything not on this list, such as Allosaurus or ZIPA, WSL if `fairseq2` needs it, or
-  `bitsandbytes`.
+  `bitsandbytes`. Approved so far: `pyarrow` 25.0.1 (PyPI, 28 MB, Apache-2.0; reads the IndicVoices files),
+  2026-10-24.
 - **Item 7 needs the owner first:** open the dataset page, accept its terms, and log in with `hf auth login`
   yourself (Claude never types tokens).
 
@@ -221,7 +226,7 @@ shows the other reading.
 |---|---|---|---|
 | 1 | 0.9.0 | the screening harness and challenge sets; the spoken-form metric and gate; as-spoken and standard copies (A1); spoken-variant list v1 (A2); "written N ways" names list (B4a) | nothing |
 | 2 | 0.9.1 | downloads 1–6; stage 1, every candidate zero-shot on the GPU; IndicConformer on the GPU | the approved list |
-| 3 | 0.9.2 | IndicVoices slice; stage 2, small-data training (Indic-Transcribe LoRA, MMS adapter, Omnilingual 300M) with folds | owner: accept the IndicVoices terms |
+| 3 | 0.9.2 | IndicVoices slice; stage 2, small-data training (Indic-Transcribe LoRA, MMS adapter, Omnilingual 300M) with folds | done 2026-10-24: terms accepted, slice fetched |
 | 4 | 0.9.3 | stage 3: full eval of the finalists; owner's listening check; adopt (spelling transfer or engine swap) | owner: 20-line listening check |
 | 5 | 0.9.4 | B-track: meaning check, second reading, second diarization pass, sound check, GPU for the helpers | — |
 | ongoing | — | each new as-spoken transcript becomes a test file the day it arrives, and training data in later folds | owner |
@@ -230,8 +235,7 @@ shows the other reading.
 
 ## 10. Risks
 - **The phoneme judge may hear phone-call Marathi badly** (zero-shot). The challenge sets show it in phase 2.
-- **IndicVoices' released files may not hold Level 1.** Then training uses the owner's transcripts only, and the
-  plan says so.
+- ~~**IndicVoices' released files may not hold Level 1.**~~ Resolved 2026-10-24: they do (column `verbatim`).
 - **`fairseq2` may not install on Windows.** Then the Omnilingual tests are skipped (WSL is asked separately).
 - **MMS is non-commercial.** Tests only; it is never adopted for paid work.
 - **Small data is noisy.** Folds, fixed challenge sets, and the listening check apply; nothing is adopted on one

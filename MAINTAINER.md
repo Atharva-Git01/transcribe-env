@@ -58,6 +58,15 @@ evaluation proves they help. Nothing here is ever done while a run is in progres
 - Tried and rejected (2026-10-22): re-decoding each line on its own to get 5 alternatives and letting the LM choose.
   The line loses its context, and the alternatives were worse (CER 0.62 vs 0.53).
 
+## Training data (PLAN_v0.9, phase 3)
+- `toolchain/data/indicvoices-mr-slice1/` (a junction to `D:\transcribe-env-data`): IndicVoices Marathi clips as
+  `audio/*.flac` + `manifest.jsonl`, made by `setup/make_indicvoices_slice.py` (pinned revision, rules and credit
+  line in its `SOURCE.json`). Text levels: `verbatim` = as spoken (the training target), `normalized` = standard
+  spelling, `unsanitized_verbatim` = as spoken with `[noise]`-style tags.
+- Training data only: never a fixture, a screening line or a test set (PLAN_v0.9 section 4.2).
+- Sound (checked 2026-10-24, energy above 4 kHz): the Conversation clips are already phone band (40 of 40 checked);
+  Extempore is mixed (19 of 40 phone band). Only the wide-band clips need the plan's phone-band simulation.
+
 ## Adding a new ASR engine
 1. Add it to `manifest.toml` (licence must allow commercial use; size; source).
 2. Owner approves the download; `setup/` installs it into `toolchain/models/<id>/` with sha256 in `SOURCE.json`.

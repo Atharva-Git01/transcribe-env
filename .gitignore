@@ -15,6 +15,8 @@ evals/runs/
 evals/compare/
 setup/logs/
 toolchain/downloads/
+# training data slices (setup/make_indicvoices_slice.py): large, rebuildable; on this PC they live on the USB (junctions)
+toolchain/data/
 toolchain/*.log
 # private recordings and their transcripts stay on this PC only (never pushed)
 evals/fixtures/*/

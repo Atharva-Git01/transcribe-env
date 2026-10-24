@@ -3,6 +3,25 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## 0.8.4 — 2026-10-24 (IndicVoices: as-spoken Marathi training data)
+**Eval.** Not run: no runtime code changed (one setup tool, one package, data on the USB). `trx doctor --offline`
+and `trx test` pass.
+
+- **IndicVoices holds the as-spoken text** (a PLAN_v0.9 risk, now resolved): column `verbatim` is Level 1 (as
+  spoken), `normalized` is Level 2 (standard spelling), `unsanitized_verbatim` is Level 1 with `[noise]`-style tags.
+  Marathi is 72 train shards of about 8 h each (about 580 h, 37.5 GB) plus a 6 h validation file.
+- **New `setup/make_indicvoices_slice.py`** (sources item `indicvoices_mr_slice1`): reads one parquet row group from
+  each of 8 shards by range requests, and keeps Conversation (70 %) and Extempore clips of 0.5–30 s whose as-spoken
+  text has no digits, Latin letters or tags, at most 3 minutes per speaker. Result: 1,469 clips, 2.0 h, 263 speakers,
+  28 districts, 67 % with at least one spoken form. It read 809 MB and stores 107 MB in
+  `toolchain/data/indicvoices-mr-slice1` (a junction to `D:\transcribe-env-data`). Every clip's sha256 and ffmpeg
+  decode were checked.
+- **The Conversation clips are phone recordings** (no energy above 4 kHz in 40 of 40 checked), so they need no
+  phone-band simulation; Extempore is mixed (19 of 40 phone band).
+- **`pyarrow` 25.0.1** (owner OK 2026-10-24) is added to `requirements-ml.lock` and `requirements-ml-cpu.lock`: it
+  reads the parquet files. `toolchain/data/` is git-ignored.
+- Training data only: never a fixture or a test set (MAINTAINER.md, "Training data").
+
 ## 0.8.3 — 2026-10-23 (the review flags point at the bad lines)
 **Eval (seeded; baseline saved).** Every CER identical to 0.8.2; what changed is which lines a reviewer is sent to.
 

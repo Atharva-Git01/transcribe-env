@@ -304,3 +304,17 @@ marker = "pytorch_model.bin"
 # multilingual phoneme recognizer (IPA, zero-shot for unseen languages): the acoustic judge of PLAN_v0.9 A3.
 # Weights are a pickle .bin: loaded with weights_only (no code runs); sha256 pinned below and re-checked by doctor --deep.
 files = [ { dest = "toolchain/models/phoneme-xlsr53-espeak/pytorch_model.bin", sha256 = "04366b6c8d24099ef313cf02f0e58d26f5dddfda16edbfc8eb2c713d94a9f551", size = 1263535127 }, { dest = "toolchain/models/phoneme-xlsr53-espeak/SOURCE.json" } ]
+
+[[item]]
+id = "indicvoices_mr_slice1"
+phase = 9
+kind = "build"
+licence = "CC-BY-4.0 (IndicVoices, AI4Bharat; gated: accept the terms on the dataset page, then `hf auth login`)"
+# PLAN_v0.9 download 7: training data only. The builder reads ai4bharat/IndicVoices at the revision pinned in it
+# (c96f9088f138cf89d419da7e8e643e1f05c00a87), one parquet row group from each of 8 Marathi shards, by range requests.
+# On this PC toolchain/data/indicvoices-mr-slice1 is a junction to D:\transcribe-env-data (USB).
+downloads = []
+build = ["setup/make_indicvoices_slice.py", "--out", "toolchain/data/indicvoices-mr-slice1", "--hours", "2", "--shards", "8"]
+files = [ { dest = "toolchain/data/indicvoices-mr-slice1/manifest.jsonl" }, { dest = "toolchain/data/indicvoices-mr-slice1/SOURCE.json" } ]
+extra_mb = 809
+note = "2 h of Marathi conversation + extempore clips with as-spoken text (verbatim) and standard spelling (normalized)"

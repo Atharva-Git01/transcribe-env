@@ -22,5 +22,8 @@ python setup/setup.py write-sources                record SOURCE.json next to ev
   - `make_mix_fixture.py`: an existing fixture + a music file at a chosen speech-to-music ratio
   - `make_ami_fixture.py`: a 3-minute window of an AMI meeting (CC-BY-4.0) with speaker turns
   - `make_fixture.py`: one of the owner's recordings + a `speaker: text` transcript
+- Training data (never a fixture or a test set; `toolchain/data/` is git-ignored, on this PC it is on the USB):
+  - `make_indicvoices_slice.py`: 2 hours of IndicVoices Marathi conversation and extempore clips (CC-BY-4.0,
+    gated like the models above) with their as-spoken text; reads only the parquet row groups it uses
 
 After setup the runtime is offline again: `trx doctor --offline` must pass.
