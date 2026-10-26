@@ -3,6 +3,12 @@
 Every accepted change to the environment, newest first, with its `trx eval` result.
 Format: `## <version> — <date>` · what changed · why · eval before → after (or "no scoring yet" before phase 1).
 
+## Fixtures — 2026-10-27 (the owner's full transcript of the 20-minute call; no code change)
+- `call_240509_20min` is scored over the whole call (201 turns, no `scored_until_sec`): CER 0.201, content CER 0.169,
+  speakers 0.989 (first 12 minutes 0.229 / 0.188, the rest 0.159 / 0.141). Baseline saved. Findings: E45.
+- Screening set v2 (`trx screen build --set v2`, 273 lines, 21.6 min) adds the new part; v1 stays frozen.
+- Questions for the owner: QUESTIONS.md 26–33.
+
 ## 0.9.3 — 2026-10-24 (PLAN_v0.9 B6: speaker embeddings on the GPU)
 **Eval (seeded).** Every fixture identical to 0.9.2 — CER, speaker accuracy and every turn outcome (Pappa 0.361 /
 0.966, 20-min call 0.232 / 0.987, AMI 0.249 / 0.887, FLEURS mr / hi / + music 0.044 / 0.021 / 0.305, RTF 1.3-1.4 → 1.0). Faster: diarization of the 20-min call

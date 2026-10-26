@@ -235,6 +235,24 @@ shows the other reading.
 
 ---
 
+## 9b. After the full transcript (2026-10-27): what is wrong, what next
+
+**What is wrong now** (whole call, E45): the main speaker's long lines are nearly right (content CER 0.13–0.18);
+the listener's short replies are not (0.32; invented words and invented numbers); 15 of 100 negations and 11 of 59
+numbers are wrong; names come out in several forms; spoken forms are almost never written (1 of 28).
+
+**Next, in this order:**
+1. **Owner answers** (QUESTIONS 26–33): the listening check (29) and the style of the new part (27) decide whether
+   the spelling transfer is switched on; the variant review (30) removes the forms that are not said here.
+2. **Keep the meaning check running** (31): it is the one check aimed at wrong negations and numbers.
+3. **Short replies (P2), still open.** Tried and rejected: a second diarization pass (E44), a second reading by
+   IndicConformer and decoding with context (E45). Next candidates: training on the owner's own replies once more
+   transcripts exist, and ranking a closed list of common replies with the recogniser's own scores as a review hint
+   (never a silent change).
+4. **More as-spoken transcripts from the owner** (the 15 voice-note drafts, item 18): new recordings give the folds
+   that training needs, in the owner's own convention.
+5. **Names** (33): the owner's names list fills the "listed spelling" column of the review list.
+
 ## 10. Risks
 - **The phoneme judge may hear phone-call Marathi badly** (zero-shot). The challenge sets show it in phase 2.
 - ~~**IndicVoices' released files may not hold Level 1.**~~ Resolved 2026-10-24: they do (column `verbatim`).

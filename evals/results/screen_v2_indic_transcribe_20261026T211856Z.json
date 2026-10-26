@@ -1,0 +1,162 @@
+{
+  "schema": "trx.screen_result/1",
+  "set": "v2",
+  "candidate": "indic_transcribe",
+  "engine": "indic_transcribe_core",
+  "env_version": "0.9.3",
+  "utc": "2026-10-26T21:18:56Z",
+  "device": "cuda",
+  "compute_type": "bfloat16",
+  "fallback_reason": null,
+  "load_s": 74.1,
+  "decode_s": 656.0,
+  "audio_s": 1298.4,
+  "rtf": 0.505,
+  "gpu_peak_mb": 1705,
+  "scores": {
+    "all": {
+      "lines": 273,
+      "audio_s": 1298.4,
+      "cer": 0.2007,
+      "cer_content": 0.1749
+    },
+    "S": {
+      "lines": 150,
+      "audio_s": 1063.8,
+      "cer": 0.1756,
+      "cer_content": 0.1508,
+      "spoken_slots": 56,
+      "hits": 0,
+      "misses": 54,
+      "unmatched": 2,
+      "recall": 0.0,
+      "standard_slots": 424,
+      "switched": 0,
+      "switch_rate": 0.0,
+      "list_recall": 0.0,
+      "list_switch_rate": 0.0
+    },
+    "R": {
+      "lines": 119,
+      "audio_s": 187.8,
+      "cer": 0.3966,
+      "cer_content": 0.3758,
+      "words_not_in_truth": 106,
+      "per_100_truth_words": 42.4
+    },
+    "N": {
+      "lines": 95,
+      "audio_s": 709.4,
+      "cer": 0.1768,
+      "cer_content": 0.1506,
+      "negations": 103,
+      "negation_errors": 16,
+      "numbers": 60,
+      "number_errors": 9
+    },
+    "G": {
+      "lines": 24,
+      "audio_s": 74.7,
+      "cer": 0.3163,
+      "cer_content": 0.2819
+    },
+    "by_fixture": {
+      "call_240509_20min": {
+        "all": {
+          "lines": 249,
+          "audio_s": 1238.7,
+          "cer": 0.1919,
+          "cer_content": 0.1665
+        },
+        "S": {
+          "lines": 140,
+          "audio_s": 1032.5,
+          "cer": 0.1718,
+          "cer_content": 0.1474,
+          "spoken_slots": 55,
+          "hits": 0,
+          "misses": 53,
+          "unmatched": 2,
+          "recall": 0.0,
+          "standard_slots": 407,
+          "switched": 0,
+          "switch_rate": 0.0,
+          "list_recall": 0.0,
+          "list_switch_rate": 0.0
+        },
+        "R": {
+          "lines": 105,
+          "audio_s": 162.2,
+          "cer": 0.3723,
+          "cer_content": 0.3537,
+          "words_not_in_truth": 82,
+          "per_100_truth_words": 40.0
+        },
+        "N": {
+          "lines": 91,
+          "audio_s": 699.7,
+          "cer": 0.1736,
+          "cer_content": 0.1489,
+          "negations": 100,
+          "negation_errors": 16,
+          "numbers": 59,
+          "number_errors": 9
+        },
+        "G": {
+          "lines": 20,
+          "audio_s": 64.1,
+          "cer": 0.3051,
+          "cer_content": 0.2686
+        }
+      },
+      "pappa_260603_211622": {
+        "all": {
+          "lines": 24,
+          "audio_s": 59.7,
+          "cer": 0.3921,
+          "cer_content": 0.3514
+        },
+        "S": {
+          "lines": 10,
+          "audio_s": 31.3,
+          "cer": 0.2937,
+          "cer_content": 0.2545,
+          "spoken_slots": 1,
+          "hits": 0,
+          "misses": 1,
+          "unmatched": 0,
+          "recall": 0.0,
+          "standard_slots": 17,
+          "switched": 0,
+          "switch_rate": 0.0,
+          "list_recall": 0.0,
+          "list_switch_rate": 0.0
+        },
+        "R": {
+          "lines": 14,
+          "audio_s": 25.7,
+          "cer": 0.513,
+          "cer_content": 0.4645,
+          "words_not_in_truth": 24,
+          "per_100_truth_words": 53.3333
+        },
+        "N": {
+          "lines": 4,
+          "audio_s": 9.8,
+          "cer": 0.3654,
+          "cer_content": 0.25,
+          "negations": 3,
+          "negation_errors": 0,
+          "numbers": 1,
+          "number_errors": 0
+        },
+        "G": {
+          "lines": 4,
+          "audio_s": 10.6,
+          "cer": 0.3867,
+          "cer_content": 0.36
+        }
+      }
+    }
+  }
+}

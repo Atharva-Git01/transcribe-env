@@ -569,3 +569,38 @@ Read before changing anything (MAINTAINER.md). Append after every reviewed run t
 - **Rule:** a reply found by diarization is only worth its line when the recogniser can read it; recovering replies
   needs the short-reply problem (P2) solved first. The code stays, off.
 
+## E45 — The 20-minute call scored over its whole length (owner's full transcript, 2026-10-27)
+- **Truth:** the owner's full transcript (201 turns). Lines 1–162 are the earlier 0–12 min transcript (one line
+  edited); lines 163–201 cover 12:00–20:35. The old truth is kept as `truth_v1_0-12min.json` (private).
+- **Seen** (0.9.3 pipeline; the USB stick was unplugged, so the meaning check did not run, and the run was ~3× slower
+  than usual — the PC's overnight power state, not the pipeline: recognition 26 min instead of ~6):
+
+  | | whole call | 0–12 min | 12 min–end |
+  |---|---|---|---|
+  | CER / content CER | 0.201 / 0.169 | 0.229 / 0.188 | 0.159 / 0.141 |
+  | speaker accuracy | 0.989 | 0.988 | 0.990 |
+  | lines < 2 s / longer (content CER) | 0.320 / 0.158 | 0.282 / 0.181 | 0.392 / 0.125 |
+  | negations wrong | 15 of 100 | 12 of 60 | 3 of 40 |
+  | numbers wrong | 11 of 59 | 3 of 35 | 8 of 24 |
+  | bad lines (> 40 % wrong) with a review flag | 17 of 25 | 10 of 17 | 7 of 8 |
+- **What the new part shows:**
+  - The main speaker's long lines are nearly always right; the listener's short replies are where it breaks (P2):
+    6 of the 8 short lines the 2026-10-23 check had marked were really > 40 % wrong; 8 of its 19 warnings held.
+  - Most number errors of the new part are number words the recogniser invented in short replies, and a misheard
+    date; the meaning check (B3) is meant for these but needs the USB stick (QUESTIONS 31).
+  - The new part is written differently: few of the listener's acknowledgements (the output has 16 lines with
+    nothing to match) and mostly standard spelling (3 spoken forms in 39 lines). Both lower the scores there in a
+    way that is not the recogniser's fault, and the spoken-form measure has almost nothing to count (QUESTIONS 27).
+  - The spelling transfer with LoRA v3, on these 8.5 minutes it never saw: words and negations unchanged (content
+    CER 0.127), 0 of 5 spoken forms, 57 of 183 standard-written words given a spoken spelling — wrong by the
+    transcript, but the transcript there is mostly standard: only the owner's ear can say (QUESTIONS 27, 29).
+  - Names: the main name in four forms and two surnames in two; `--hotwords` cannot help here, because
+    Indic-Transcribe takes no word list (only Whisper does). The review list's names section is the remedy for now.
+  - A second reading by IndicConformer is no help for short replies: where the two disagree on a short line,
+    IndicConformer is right only 6 times in 37 (Indic-Transcribe 12 times). Their disagreement is a sign of doubt
+    (Indic-Transcribe wrong in 68 % of such lines, 31 % where they agree), but the `uncertain` flag already marks
+    most bad short lines.  - Tried for short replies (P2): decoding a short line together with the 2 or 4 s before it (the end of the other
+    speaker's turn) and keeping the words after that turn's known text. Worse: content CER of the 104 short lines
+    0.309 → 0.433 (2 s) / 0.358 (4 s); 16–17 lines better, 21–25 worse. Not adopted: the recogniser is a one-speaker
+    model (E28), and the other voice in the clip pulls the reply off.
+

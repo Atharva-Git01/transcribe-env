@@ -92,6 +92,6 @@ Every candidate model is decoded on the same fixed lines, one model at a time on
 | fleurs_hi_test10 | hi | 122.6 s | FLEURS test (CC-BY-4.0), 10 read sentences | CER 0.021 |
 | fleurs_mr_test10_music5db | mr | 127.7 s | fleurs_mr_test10 + public-domain music 5 dB below the speech | CER 0.305 |
 | ami_es2004a_450s | en | 180 s | AMI meeting ES2004a, 450–630 s (CC-BY-4.0); 4 speakers, 57 turns | CER 0.249 · spk 0.887 |
-| call_240509_20min | mr | 1234.7 s | owner's real phone call (private), 2 speakers; the owner's transcript covers 0:00–12:00 (163 turns, colloquial spelling) → `scored_until_sec` 720 | CER 0.232 · content 0.192 · spk 0.986 |
+| call_240509_20min | mr | 1234.7 s | owner's real phone call (private), 2 speakers; the owner's full transcript since 2026-10-27 (201 turns; lines 1–162 colloquial, 163–201 mostly standard spelling, few listener replies written); the 0–12 min truth is kept as `truth_v1_0-12min.json` | CER 0.201 · content 0.169 · spk 0.989 (0.9.3; first 12 min 0.229 / 0.188, rest 0.159 / 0.141) |
 
 Wanted: 5–10 short labelled real recordings from the owner (`setup/make_fixture.py`).
